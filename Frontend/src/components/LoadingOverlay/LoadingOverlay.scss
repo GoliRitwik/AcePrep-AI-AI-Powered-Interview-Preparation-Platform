@@ -1,0 +1,203 @@
+// ── Variables ─────────────────────────────────────────────────────────────────
+$bg:             #0d1117;
+$text-primary:   #e6edf3;
+$text-muted:     rgba(255, 255, 255, 0.35);
+$accent:         #ff2d78;
+$progress-color: #4f8ef7;
+$step-done:      #22c55e;
+$step-pending:   rgba(255, 255, 255, 0.22);
+$font:           system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+// ── Overlay Shell ─────────────────────────────────────────────────────────────
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background-color: $bg;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: $font;
+
+    &--entering { animation: lo-fade-in  200ms ease both; }
+    &--exiting  { animation: lo-fade-out 400ms ease both; }
+}
+
+@keyframes lo-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lo-fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+
+// ── Content Card ──────────────────────────────────────────────────────────────
+.lo-content {
+    width: 100%;
+    max-width: 460px;
+    padding: 0 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+}
+
+
+// ── Brand ─────────────────────────────────────────────────────────────────────
+.lo-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.45);
+    letter-spacing: 0.04em;
+
+    &__star { color: $accent; font-size: 1rem; }
+}
+
+
+// ── Rotating Headline ─────────────────────────────────────────────────────────
+.lo-headline {
+    height: 2.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+
+    h2 {
+        margin: 0;
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: $text-primary;
+        text-align: center;
+        transition: opacity 280ms ease, transform 280ms ease;
+
+        &.lo-headline--visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        &.lo-headline--hidden {
+            opacity: 0;
+            transform: translateY(-6px);
+        }
+    }
+}
+
+
+// ── Progress Bar ──────────────────────────────────────────────────────────────
+.lo-progress-track {
+    width: 100%;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 99px;
+    overflow: hidden;
+}
+
+.lo-progress-fill {
+    height: 100%;
+    background: $progress-color;
+    border-radius: 99px;
+    width: 0%;
+    transition: width 10s linear;   // default: slow linear sweep to 95%
+
+    &--done {
+        transition: width 0.35s ease;  // snaps to 100% when API responds
+    }
+}
+
+
+// ── Step List ─────────────────────────────────────────────────────────────────
+.lo-steps {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.lo-step {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: 0.45rem;
+    border-left: 2px solid transparent;
+    transition: border-color 0.3s ease, background 0.3s ease, color 0.3s ease;
+
+    // ── Icon column ──
+    &__icon {
+        width: 1.1rem;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    // ── Label ──
+    &__label {
+        flex: 1;
+        font-size: 0.875rem;
+        transition: color 0.3s ease;
+    }
+
+    // ── Trailing status text ──
+    &__status {
+        font-size: 0.72rem;
+        color: rgba(255, 255, 255, 0.4);
+
+        &--done {
+            color: $step-done;
+            opacity: 0.85;
+        }
+    }
+
+    // ── Pulsing active dot ──
+    &__dot {
+        display: block;
+        width: 8px;
+        height: 8px;
+        background: #fff;
+        border-radius: 50%;
+        animation: lo-pulse 1.2s ease-in-out infinite;
+    }
+
+    // ══ State: DONE ══
+    &--done {
+        animation: lo-step-in 0.3s ease both;
+
+        .lo-step__icon  { color: $step-done; }
+        .lo-step__label { color: rgba(255, 255, 255, 0.65); }
+    }
+
+    // ══ State: ACTIVE ══
+    &--active {
+        border-left-color: $progress-color;
+        background: rgba($progress-color, 0.07);
+        animation: lo-step-in 0.3s ease both;
+
+        .lo-step__label { color: #fff; font-weight: 500; }
+    }
+
+    // ══ State: PENDING ══
+    &--pending {
+        .lo-step__icon  { color: $step-pending; }
+        .lo-step__label { color: $step-pending; }
+    }
+}
+
+@keyframes lo-pulse {
+    0%, 100% { transform: scale(1);   opacity: 1;   }
+    50%       { transform: scale(1.3); opacity: 0.6; }
+}
+
+@keyframes lo-step-in {
+    from { opacity: 0.3; transform: translateY(4px); }
+    to   { opacity: 1;   transform: translateY(0);   }
+}
+
+
+// ── Hint ──────────────────────────────────────────────────────────────────────
+.lo-hint {
+    font-size: 0.78rem;
+    color: $text-muted;
+    margin: 0;
+    text-align: center;
+}
