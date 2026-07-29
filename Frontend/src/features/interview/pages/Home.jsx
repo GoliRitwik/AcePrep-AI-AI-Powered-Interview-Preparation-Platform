@@ -1,30 +1,63 @@
 import React, { useState, useRef } from 'react'
 import "../style/home.scss"
 import { useInterview } from '../hooks/useInterview.js'
-import { useNavigate } from 'react-router'
+import { useNavigate, Link, useLocation } from 'react-router'
 import { useAuth } from '../../auth/hooks/useAuth.js'
 import LoadingOverlay from '../../../components/LoadingOverlay/LoadingOverlay.jsx'
+import GenerateButton from '../../../components/GenerateButton/GenerateButton.jsx'
+import toast from 'react-hot-toast'
 
 const Home = () => {
 
-    const { loading, generateReport, reports } = useInterview()
+    const { loading, generateReport, cancelGeneration, reports } = useInterview()
     const { user, handleLogout } = useAuth()
     const [ jobDescription, setJobDescription ] = useState("")
     const [ selfDescription, setSelfDescription ] = useState("")
     const resumeInputRef = useRef()
+    const [selectedFile, setSelectedFile] = useState(null)
+    const [isDragging, setIsDragging] = useState(false)
+
+    // Formats raw bytes into a human-readable string (KB / MB)
+    const formatFileSize = (bytes) => {
+        if (bytes < 1024) return `${bytes} B`
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    }
+
+    // Single handler for both click-to-select and drag-and-drop
+    const handleFileSelect = (file) => {
+        if (!file) return
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error("File size must be under 5MB")
+            return
+        }
+        setSelectedFile(file)
+    }
+
+    const handleRemoveFile = () => {
+        setSelectedFile(null)
+        if (resumeInputRef.current) resumeInputRef.current.value = ''   // allow re-selecting the same file
+    }
 
     const navigate = useNavigate()
+    const location = useLocation()
 
     // Tracks report generation specifically (separate from hook's loading state
     // which also fires on initial page load)
     const [isGenerating, setIsGenerating] = useState(false)
 
     const handleGenerateReport = async () => {
-        const resumeFile = resumeInputRef.current.files[0]
+        // Use selectedFile state — this is set by BOTH click-select and drag-and-drop.
+        // Never read resumeInputRef.current.files[0] here: drag-and-drop doesn't
+        // populate the <input> file list, so it would always be undefined.
+        const resumeFile = selectedFile || undefined
         setIsGenerating(true)
         try {
             const data = await generateReport({ jobDescription, selfDescription, resumeFile })
-            navigate(`/interview/${data._id}`)
+            // data is null when user cancelled — don't navigate in that case
+            if (data?._id) {
+                navigate(`/interview/${data._id}`)
+            }
         } finally {
             // Always reset — even if the API call throws
             setIsGenerating(false)
@@ -52,6 +85,23 @@ const Home = () => {
                     </svg>
                     AI Interview <span>Prep</span>
                 </div>
+
+                {/* Navigation links */}
+                <div className='nav-links'>
+                    <Link
+                        to="/"
+                        className={`nav-link${location.pathname === '/' ? ' nav-link--active' : ''}`}
+                    >
+                        New Plan
+                    </Link>
+                    <Link
+                        to="/plans"
+                        className={`nav-link${location.pathname === '/plans' ? ' nav-link--active' : ''}`}
+                    >
+                        My Plans
+                    </Link>
+                </div>
+
                 <div className='nav-user'>
                     <div className='user-greeting'>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -117,14 +167,88 @@ const Home = () => {
                                 Upload Resume
                                 <span className='badge badge--best'>Best Results</span>
                             </label>
-                            <label className='dropzone' htmlFor='resume'>
-                                <span className='dropzone__icon'>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" /></svg>
-                                </span>
-                                <p className='dropzone__title'>Click to upload or drag &amp; drop</p>
-                                <p className='dropzone__subtitle'>PDF or DOCX (Max 5MB)</p>
-                                <input ref={resumeInputRef} hidden type='file' id='resume' name='resume' accept='.pdf,.docx' />
-                            </label>
+
+                            {/* Hidden file input — triggered programmatically */}
+                            <input
+                                ref={resumeInputRef}
+                                type='file'
+                                id='resume'
+                                name='resume'
+                                accept='.pdf,.docx'
+                                style={{ display: 'none' }}
+                                onChange={(e) => handleFileSelect(e.target.files[0])}
+                            />
+
+                            {selectedFile ? (
+                                /* ── File preview card ── */
+                                <div className='file-preview'>
+                                    <span className='file-preview__icon'>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                            <polyline points="14 2 14 8 20 8" />
+                                            <line x1="16" y1="13" x2="8" y2="13" />
+                                            <line x1="16" y1="17" x2="8" y2="17" />
+                                            <polyline points="10 9 9 9 8 9" />
+                                        </svg>
+                                    </span>
+                                    <div className='file-preview__info'>
+                                        <p className='file-preview__name' title={selectedFile.name}>
+                                            {selectedFile.name}
+                                        </p>
+                                        <p className='file-preview__size'>{formatFileSize(selectedFile.size)}</p>
+                                    </div>
+                                    <button
+                                        className='file-preview__remove'
+                                        onClick={handleRemoveFile}
+                                        title='Remove file'
+                                        type='button'
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            ) : (
+                                /* ── Drop zone — div with full drag handlers ── */
+                                <div
+                                    className={`dropzone${isDragging ? ' dropzone--dragging' : ''}`}
+                                    onClick={() => resumeInputRef.current?.click()}
+                                    onDragEnter={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        setIsDragging(true)
+                                    }}
+                                    onDragOver={(e) => {
+                                        // MUST call preventDefault() or the browser
+                                        // treats the drop as a navigation event
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        setIsDragging(true)
+                                    }}
+                                    onDragLeave={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        // Only clear when leaving the zone entirely,
+                                        // not when moving between child elements
+                                        if (!e.currentTarget.contains(e.relatedTarget)) {
+                                            setIsDragging(false)
+                                        }
+                                    }}
+                                    onDrop={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        setIsDragging(false)
+                                        // Drop events use dataTransfer.files — NOT e.target.files
+                                        handleFileSelect(e.dataTransfer.files[0])
+                                    }}
+                                >
+                                    <span className='dropzone__icon'>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" /></svg>
+                                    </span>
+                                    <p className='dropzone__title'>
+                                        {isDragging ? 'Drop your file here' : 'Click to upload or drag & drop'}
+                                    </p>
+                                    <p className='dropzone__subtitle'>PDF or DOCX · Max 5MB</p>
+                                </div>
+                            )}
                         </div>
 
                         {/* OR Divider */}
@@ -155,30 +279,14 @@ const Home = () => {
                 {/* Card Footer */}
                 <div className='interview-card__footer'>
                     <span className='footer-info'>AI-Powered Strategy Generation &bull; Approx 30s</span>
-                    <button
+                    <GenerateButton
                         onClick={handleGenerateReport}
-                        className='generate-btn'>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" /></svg>
-                        Generate My Interview Strategy
-                    </button>
+                        isLoading={isGenerating}
+                        label="Generate My Interview Strategy"
+                        loadingLabel="Generating your plan…"
+                    />
                 </div>
             </div>
-
-            {/* Recent Reports List */}
-            {reports.length > 0 && (
-                <section className='recent-reports'>
-                    <h2>My Recent Interview Plans</h2>
-                    <ul className='reports-list'>
-                        {reports.map(report => (
-                            <li key={report._id} className='report-item' onClick={() => navigate(`/interview/${report._id}`)}>
-                                <h3>{report.title || 'Untitled Position'}</h3>
-                                <p className='report-meta'>Generated on {new Date(report.createdAt).toLocaleDateString()}</p>
-                                <p className={`match-score ${report.matchScore >= 80 ? 'score--high' : report.matchScore >= 60 ? 'score--mid' : 'score--low'}`}>Match Score: {report.matchScore}%</p>
-                            </li>
-                        ))}
-                    </ul>
-                </section>
-            )}
 
             {/* Page Footer */}
             <footer className='page-footer'>
@@ -188,7 +296,7 @@ const Home = () => {
             </footer>
 
             {/* Full-screen overlay — appears during report generation only */}
-            <LoadingOverlay isVisible={isGenerating} />
+            <LoadingOverlay isVisible={isGenerating} onCancel={cancelGeneration} />
 
         </div>
     )

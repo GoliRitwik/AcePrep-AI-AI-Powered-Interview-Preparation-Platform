@@ -44,6 +44,15 @@ const skillGapSchema = new mongoose.Schema({
         type: String,
         enum: [ "low", "medium", "high" ],
         required: [ true, "Severity is required" ]
+    },
+    // Added in v2 — optional so old documents still load without errors
+    reason: {
+        type: String,
+        default: null
+    },
+    suggestion: {
+        type: String,
+        default: null
     }
 }, {
     _id: false
@@ -80,6 +89,11 @@ const interviewReportSchema = new mongoose.Schema({
         min: 0,
         max: 100,
     },
+    // One-sentence justification for the match score (added in v2)
+    matchSummary: {
+        type: String,
+        default: null
+    },
     technicalQuestions: [ technicalQuestionSchema ],
     behavioralQuestions: [ behavioralQuestionSchema ],
     skillGaps: [ skillGapSchema ],
@@ -91,10 +105,22 @@ const interviewReportSchema = new mongoose.Schema({
     title: {
         type: String,
         required: [ true, "Job title is required" ]
+    },
+    // ── Sharing ──────────────────────────────────────────────────────────────
+    shareId: {
+        type: String,
+        default: null
+    },
+    isShared: {
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true
 })
+
+// Sparse index — only indexes docs that actually have a shareId set
+interviewReportSchema.index({ shareId: 1 }, { sparse: true })
 
 
 const interviewReportModel = mongoose.model("InterviewReport", interviewReportSchema);

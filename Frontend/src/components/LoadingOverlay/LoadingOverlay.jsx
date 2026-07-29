@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router'
 import './LoadingOverlay.scss'
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -28,31 +29,37 @@ const HEADLINES = [
 /**
  * Full-screen loading overlay for the report generation flow.
  *
- * @param {boolean} isVisible  true = show overlay, false = trigger exit + unmount
+ * @param {boolean}  isVisible  true = show overlay, false = trigger exit + unmount
+ * @param {function} onCancel   Called when the user confirms cancellation — should abort the API request
  */
-const LoadingOverlay = ({ isVisible }) => {
+const LoadingOverlay = ({ isVisible, onCancel }) => {
+
+    const navigate = useNavigate()
 
     // Whether the overlay is in the DOM at all
-    const [mounted, setMounted] = useState(false)
-    // CSS class switch: 'entering' | 'exiting'
-    const [phase, setPhase] = useState('entering')
+    const [mounted, setMounted]   = useState(false)
+    // CSS class: 'entering' | 'exiting'
+    const [phase, setPhase]       = useState('entering')
 
     // Steps
-    const [activeStep, setActiveStep]       = useState(0)
+    const [activeStep, setActiveStep]         = useState(0)
     const [completedSteps, setCompletedSteps] = useState([])
 
     // Headline rotation
-    const [hlIndex, setHlIndex]   = useState(0)
+    const [hlIndex, setHlIndex]     = useState(0)
     const [hlVisible, setHlVisible] = useState(true)
 
-    // Progress bar 0–95 (linear) then snaps to 100 on done
-    const [progress, setProgress]           = useState(0)
-    const [progressDone, setProgressDone]   = useState(false)
+    // Progress bar
+    const [progress, setProgress]         = useState(0)
+    const [progressDone, setProgressDone] = useState(false)
 
-    // Tracks whether we were previously visible (avoids firing exit on first render)
-    const wasVisible = useRef(false)
-    // Holds all timer IDs so we can cancel everything at once
-    const timers = useRef([])
+    // Cancel UI state
+    const [showConfirm, setShowConfirm] = useState(false)
+
+    // Refs
+    const wasVisible   = useRef(false)   // avoids firing exit on first render
+    const timers       = useRef([])      // all setTimeout / setInterval IDs
+    const startTimeRef = useRef(null)    // when the overlay opened (for 7s threshold)
 
     const clearAll = () => {
         timers.current.forEach(id => {
@@ -62,41 +69,42 @@ const LoadingOverlay = ({ isVisible }) => {
         timers.current = []
     }
 
-    // ── Main effect: responds to isVisible changes ────────────────────────────
+    // ── Main effect ───────────────────────────────────────────────────────────
     useEffect(() => {
 
         // ── OPEN ──────────────────────────────────────────────────────────────
         if (isVisible && !wasVisible.current) {
-            wasVisible.current = true
+            wasVisible.current  = true
+            startTimeRef.current = Date.now()
 
-            // Reset everything to initial state
+            // Reset all UI state
             setActiveStep(0)
             setCompletedSteps([])
             setHlIndex(0)
             setHlVisible(true)
             setProgress(0)
             setProgressDone(false)
+            setShowConfirm(false)
             setPhase('entering')
             setMounted(true)
 
             clearAll()
 
-            // Small delay lets the browser paint progress=0 before we start the
-            // 10-second CSS transition to 95%
+            // Small delay lets the browser paint width=0 before the 10s CSS transition
             const t0 = setTimeout(() => setProgress(95), 60)
             timers.current.push(t0)
 
-            // Auto-advance steps on a timer
+            // Auto-advance steps
             STEP_DELAYS.forEach((delay, i) => {
-                if (i === 0) return  // step 0 is already active from the start
+                if (i === 0) return   // step 0 is already active from the start
                 const t = setTimeout(() => {
-                    setCompletedSteps(prev => [...prev, i - 1])  // previous step → done
-                    setActiveStep(i)                              // this step → active
+                    setCompletedSteps(prev => [...prev, i - 1])
+                    setActiveStep(i)
                 }, delay)
                 timers.current.push(t)
             })
 
-            // Rotate headline every 3 s with a fade
+            // Headline rotation every 3s with a 300ms crossfade
             const hlInterval = setInterval(() => {
                 setHlVisible(false)
                 const swap = setTimeout(() => {
@@ -108,10 +116,11 @@ const LoadingOverlay = ({ isVisible }) => {
             timers.current.push(hlInterval)
         }
 
-        // ── CLOSE (API responded) ─────────────────────────────────────────────
+        // ── CLOSE (API responded OR user cancelled) ───────────────────────────
         if (!isVisible && wasVisible.current) {
             wasVisible.current = false
             clearAll()
+            setShowConfirm(false)
 
             // Instantly complete all steps and snap progress to 100%
             setCompletedSteps([0, 1, 2, 3, 4, 5])
@@ -119,11 +128,10 @@ const LoadingOverlay = ({ isVisible }) => {
             setProgressDone(true)
             setProgress(100)
 
-            // Brief pause so the user sees "all done", then fade out
+            // Brief "all done" pause, then fade out
             const exitStart = setTimeout(() => {
                 setPhase('exiting')
 
-                // Unmount after the CSS fade-out animation finishes (400ms)
                 const unmount = setTimeout(() => {
                     setMounted(false)
                     setProgress(0)
@@ -134,10 +142,28 @@ const LoadingOverlay = ({ isVisible }) => {
             timers.current.push(exitStart)
         }
 
-    }, [isVisible])    // eslint-disable-line react-hooks/exhaustive-deps
+    }, [isVisible])  // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Cleanup on component unmount
+    // Cleanup on unmount
     useEffect(() => () => clearAll(), [])
+
+    // ── Cancel logic ──────────────────────────────────────────────────────────
+
+    const handleCancelClick = () => {
+        const elapsed = Date.now() - (startTimeRef.current || 0)
+        if (elapsed >= 7000) {
+            // Been waiting 7+ seconds — ask for confirmation first
+            setShowConfirm(true)
+        } else {
+            // Early cancel — no need to confirm
+            doCancel()
+        }
+    }
+
+    const doCancel = () => {
+        onCancel?.()      // abort the axios request in useInterview
+        navigate('/')     // navigate back to home (no-op if already there, state resets)
+    }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -183,17 +209,14 @@ const LoadingOverlay = ({ isVisible }) => {
                         return (
                             <div key={i} className={`lo-step lo-step--${state}`}>
 
-                                {/* Icon */}
                                 <span className="lo-step__icon">
-                                    {state === 'done'   && '✓'}
-                                    {state === 'active' && <span className="lo-step__dot" />}
+                                    {state === 'done'    && '✓'}
+                                    {state === 'active'  && <span className="lo-step__dot" />}
                                     {state === 'pending' && '◌'}
                                 </span>
 
-                                {/* Label */}
                                 <span className="lo-step__label">{step.label}</span>
 
-                                {/* Trailing status */}
                                 {state === 'active' && (
                                     <span className="lo-step__status">processing...</span>
                                 )}
@@ -208,6 +231,35 @@ const LoadingOverlay = ({ isVisible }) => {
 
                 {/* Hint */}
                 <p className="lo-hint">This usually takes ~10 seconds</p>
+
+                {/* ── Cancel section ── */}
+                {!showConfirm ? (
+                    // Default: single subtle cancel button
+                    <button className="lo-cancel-btn" onClick={handleCancelClick}>
+                        ✕ Cancel &amp; go back
+                    </button>
+                ) : (
+                    // Confirmation state: shown after 7s or on click
+                    <div className="lo-confirm-row">
+                        <span className="lo-confirm-row__label">
+                            Cancel and lose progress?
+                        </span>
+                        <div className="lo-confirm-row__actions">
+                            <button
+                                className="lo-confirm-row__yes"
+                                onClick={doCancel}
+                            >
+                                Yes, cancel
+                            </button>
+                            <button
+                                className="lo-confirm-row__keep"
+                                onClick={() => setShowConfirm(false)}
+                            >
+                                Keep waiting
+                            </button>
+                        </div>
+                    </div>
+                )}
 
             </div>
         </div>

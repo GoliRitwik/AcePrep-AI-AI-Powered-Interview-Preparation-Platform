@@ -96,6 +96,25 @@ $font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
             background: rgba($accent, 0.06);
         }
     }
+
+    // ── Nav links (New Plan / My Plans) ──────────────────────────────────────
+    .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 0.15rem;
+    }
+
+    .nav-link {
+        padding: 0.4rem 0.85rem;
+        border-radius: 0.4rem;
+        font-size: 0.875rem;
+        color: $text-muted;
+        text-decoration: none;
+        transition: color 0.2s, background 0.2s;
+
+        &:hover          { color: $text-primary; background: rgba(255,255,255,0.05); }
+        &.nav-link--active { color: $text-primary; background: rgba(255,255,255,0.07); }
+    }
 }
 
 // ── Page Header ──────────────────────────────────────────────────────────────
@@ -281,16 +300,34 @@ $font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
     border: 2px dashed $border-color;
     border-radius: 0.6rem;
     cursor: pointer;
-    transition: border-color 0.2s, background-color 0.2s;
+    transition: border-color 0.2s, background-color 0.2s, transform 0.15s;
+    user-select: none;
+
+    // Critical: child elements must NOT intercept pointer events or
+    // onDragLeave fires incorrectly when the cursor moves over a child.
+    * { pointer-events: none; }
 
     &:hover {
         border-color: $accent;
         background-color: rgba($accent, 0.05);
     }
 
+    // Active drag-over state
+    &--dragging {
+        border-color: $accent;
+        border-style: solid;
+        background-color: rgba($accent, 0.1);
+        transform: scale(1.01);
+
+        .dropzone__icon { color: $accent; opacity: 1; }
+        .dropzone__title { color: $text-primary; }
+    }
+
     &__icon {
         color: $accent;
+        opacity: 0.7;
         margin-bottom: 0.25rem;
+        transition: opacity 0.2s;
     }
 
     &__title {
@@ -305,6 +342,69 @@ $font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
         color: $text-muted;
         margin: 0;
     }
+}
+
+// ── File Preview Card (shown after resume is selected) ────────────────────────
+.file-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    background-color: rgba(#22c55e, 0.06);
+    border: 1px solid rgba(#22c55e, 0.25);
+    border-radius: 0.6rem;
+    animation: fp-enter 0.25s ease both;
+
+    &__icon {
+        flex-shrink: 0;
+        color: #22c55e;
+        display: flex;
+        align-items: center;
+    }
+
+    &__info {
+        flex: 1;
+        overflow: hidden;   // enables text-overflow on child
+    }
+
+    &__name {
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: $text-primary;
+        margin: 0 0 0.15rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    &__size {
+        font-size: 0.72rem;
+        color: $text-muted;
+        margin: 0;
+    }
+
+    &__remove {
+        flex-shrink: 0;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 0.35rem;
+        color: $text-muted;
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        cursor: pointer;
+        transition: border-color 0.2s, color 0.2s;
+        font-family: $font-stack;
+
+        &:hover {
+            border-color: rgba(#ff2d78, 0.5);
+            color: #ff2d78;
+        }
+    }
+}
+
+@keyframes fp-enter {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 // ── OR Divider ────────────────────────────────────────────────────────────────
@@ -369,7 +469,7 @@ $font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
     align-items: center;
     gap: 0.5rem;
     padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, $accent 0%, darken($accent, 10%) 100%);
+    background: linear-gradient(135deg, $accent 0%, color-mix(in srgb, $accent 90%, black) 100%);
     color: #fff;
     font-size: 0.9rem;
     font-weight: 600;
@@ -438,4 +538,45 @@ $font-stack:     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Robot
             color: $text-primary;
         }
     }
+}
+
+// ── Loading screen (initial data fetch) ───────────────────────────────────────
+.loading-screen {
+    display:         flex;
+    flex-direction:  column;
+    align-items:     center;
+    justify-content: center;
+    gap:             1.5rem;
+    width:           100%;
+    min-height:      100vh;
+    background:      $bg-page;
+    font-family:     $font-stack;
+
+    // Animated spinner ring
+    &::before {
+        content:       '';
+        display:       block;
+        width:         44px;
+        height:        44px;
+        border:        3px solid rgba(255, 255, 255, 0.08);
+        border-top-color: $accent;
+        border-radius: 50%;
+        animation:     ls-spin 0.8s linear infinite;
+    }
+
+    h1 {
+        font-size:      1rem;
+        font-weight:    500;
+        color:          $text-muted;
+        letter-spacing: 0.02em;
+        margin:         0;
+    }
+}
+
+@keyframes ls-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .loading-screen::before { animation: none; }
 }

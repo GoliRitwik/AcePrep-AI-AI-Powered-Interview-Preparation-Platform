@@ -1,0 +1,492 @@
+// ── Variables ─────────────────────────────────────────────────────────────────
+$bg-page:      #0d1117;
+$bg-card:      #161b22;
+$bg-card-hover:#1a2133;
+$border-color: #2a3348;
+$border-hover: #3d4f6e;
+$text-primary: #e6edf3;
+$text-muted:   #7d8590;
+$accent:       #ff2d78;
+$font-stack:   system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAGE SHELL  — block layout, NOT flex, so nothing can interfere with widths
+// ─────────────────────────────────────────────────────────────────────────────
+.plans-page {
+    display: block;          // explicit block, not flex
+    width: 100%;
+    min-height: 100vh;
+    background-color: $bg-page;
+    color: $text-primary;
+    font-family: $font-stack;
+    box-sizing: border-box;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STICKY NAVBAR  — override any home.scss bleeding styles
+// ─────────────────────────────────────────────────────────────────────────────
+.plans-page .app-navbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.9rem 2rem;
+    background-color: rgba($bg-card, 0.92);
+    border: none;                              // reset home.scss border
+    border-bottom: 1px solid $border-color;   // only bottom border
+    border-radius: 0;                          // reset home.scss radius
+    margin-bottom: 0;                          // reset home.scss margin
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-sizing: border-box;
+
+    .nav-logo {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 1rem;
+        font-weight: 700;
+        color: $text-primary;
+        text-decoration: none;
+        svg  { color: $accent; flex-shrink: 0; }
+        span { color: $accent; }
+    }
+
+    .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 0.15rem;
+    }
+
+    .nav-link {
+        padding: 0.4rem 0.85rem;
+        border-radius: 0.4rem;
+        font-size: 0.875rem;
+        color: $text-muted;
+        text-decoration: none;
+        transition: color 0.2s, background 0.2s;
+
+        &:hover           { color: $text-primary; background: rgba(255,255,255,0.05); }
+        &.nav-link--active { color: $text-primary; background: rgba(255,255,255,0.07); }
+    }
+
+    .nav-user {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .user-greeting {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.85rem;
+        color: $text-muted;
+        strong { color: $text-primary; }
+    }
+
+    .logout-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.4rem 0.85rem;
+        background: transparent;
+        border: 1px solid $border-color;
+        border-radius: 0.45rem;
+        color: $text-muted;
+        font-size: 0.8rem;
+        font-family: $font-stack;
+        cursor: pointer;
+        transition: border-color 0.2s, color 0.2s;
+
+        &:hover { border-color: $accent; color: $accent; }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN CONTENT AREA  — block element, centered, full width
+// ─────────────────────────────────────────────────────────────────────────────
+.plans-main {
+    display: block;                // explicit block, NOT flex
+    width: 100%;                   // full width of plans-page
+    max-width: 1100px;             // cap on wide screens
+    margin-left: auto;             // center horizontally
+    margin-right: auto;
+    padding: 2.5rem 2rem 5rem;
+    box-sizing: border-box;
+}
+
+// Loading state (used in place of plans-main)
+.plans-loading {
+    display: block;
+    padding: 6rem 2rem;
+    text-align: center;
+    color: $text-muted;
+    font-family: $font-stack;
+    font-size: 0.95rem;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HEADER ROW  — title + count on left, search on right
+// ─────────────────────────────────────────────────────────────────────────────
+.plans-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    margin-bottom: 1.75rem;
+    flex-wrap: wrap;
+    box-sizing: border-box;
+}
+
+.plans-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.plans-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: $text-primary;
+    margin: 0;
+}
+
+.plans-count {
+    font-size: 0.75rem;
+    color: $text-muted;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid $border-color;
+    border-radius: 99px;
+    padding: 0.2rem 0.7rem;
+    white-space: nowrap;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEARCH INPUT
+// ─────────────────────────────────────────────────────────────────────────────
+.plans-search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.75rem;
+    background: $bg-card;
+    border: 1px solid $border-color;
+    border-radius: 0.5rem;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+
+    svg { color: $text-muted; flex-shrink: 0; }
+
+    &:focus-within { border-color: $border-hover; }
+
+    &__input {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: $text-primary;
+        font-size: 0.875rem;
+        font-family: $font-stack;
+        width: 200px;
+
+        &::placeholder { color: $text-muted; }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLANS GRID  — the critical layout: auto-fill multi-column grid
+// ─────────────────────────────────────────────────────────────────────────────
+.plans-grid {
+    display: grid;
+    width: 100%;                                              // MUST fill .plans-main
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));  // auto-fill, not auto-fit
+    gap: 16px;
+    align-items: start;
+    box-sizing: border-box;
+}
+
+.plans-no-results {
+    grid-column: 1 / -1;
+    color: $text-muted;
+    font-size: 0.875rem;
+    padding: 1rem 0;
+    margin: 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "NEW PLAN" DASHED CARD
+// ─────────────────────────────────────────────────────────────────────────────
+.plan-card--new {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 140px;
+    border: 2px dashed $border-color;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    background: transparent;
+    transition: border-color 0.2s, background 0.2s;
+    box-sizing: border-box;
+
+    &:hover {
+        border-color: rgba($accent, 0.5);
+        background: rgba($accent, 0.04);
+    }
+
+    .plan-card-new__plus {
+        font-size: 1.6rem;
+        color: $text-muted;
+        line-height: 1;
+        transition: color 0.2s;
+    }
+    &:hover .plan-card-new__plus { color: $accent; }
+
+    .plan-card-new__label {
+        font-size: 0.8rem;
+        color: $text-muted;
+        margin: 0;
+        transition: color 0.2s;
+    }
+    &:hover .plan-card-new__label { color: $accent; }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAN CARD (regular)
+// ─────────────────────────────────────────────────────────────────────────────
+.plan-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background-color: $bg-card;
+    border: 1px solid $border-color;
+    border-radius: 0.75rem;
+    padding: 16px 18px;                  // comfortable internal padding
+    cursor: pointer;
+    min-height: 140px;
+    box-sizing: border-box;
+    transition:
+        border-color 0.18s ease,
+        background-color 0.18s ease,
+        transform 0.18s ease,
+        box-shadow 0.18s ease;
+
+    &:hover:not(.plan-card--new):not(.plan-card--confirm) {
+        background-color: $bg-card-hover;
+        border-color: $border-hover;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }
+
+    &--confirm {
+        cursor: default;
+        border-color: rgba(#e74c3c, 0.35);
+        background: rgba(#e74c3c, 0.04);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CARD INTERNALS
+// ─────────────────────────────────────────────────────────────────────────────
+.plan-card__top {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;                           // slightly more space between icon and title
+}
+
+// 32×32 accent icon box
+.plan-card__icon-box {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 0.4rem;
+    background: rgba($accent, 0.1);
+    border: 1px solid rgba($accent, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: $accent;
+}
+
+.plan-card__meta-group {
+    flex: 1;
+    min-width: 0;           // enables text-overflow on children
+    padding-top: 1px;
+}
+
+.plan-card__title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 0 0 0.25rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.35;
+}
+
+.plan-card__vtag {
+    display: inline-block;
+    margin-left: 6px;                    // small gap from title text
+    font-size: 0.6rem;                   // slightly smaller
+    font-weight: 500;
+    color: $text-muted;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid $border-color;
+    border-radius: 3px;
+    padding: 1px 4px;
+    vertical-align: middle;
+    line-height: 1.4;
+}
+
+.plan-card__date {
+    font-size: 0.72rem;
+    color: $text-muted;
+    margin: 0;
+}
+
+// Delete button — top-right of card
+.plan-card__delete-btn {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0.3rem;
+    color: $text-muted;
+    padding: 0.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    opacity: 0;
+    transition: border-color 0.2s, color 0.2s, background 0.2s, opacity 0.2s;
+
+    .plan-card:hover & { opacity: 1; }
+
+    &:hover {
+        border-color: rgba(#e74c3c, 0.4);
+        color: #e74c3c;
+        background: rgba(#e74c3c, 0.07);
+    }
+}
+
+// Bottom row: score ring + "match" label — single row, vertically centered
+.plan-card__bottom {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: auto;                    // push to bottom of card
+}
+
+.plan-card__match-label {
+    font-size: 0.72rem;
+    color: $text-muted;
+    line-height: 1;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SVG SCORE RING
+// ─────────────────────────────────────────────────────────────────────────────
+.score-ring {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    line-height: 1;
+
+    svg { flex-shrink: 0; display: block; }
+
+    &__label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        line-height: 1;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIRM DELETE (inline state inside the card)
+// ─────────────────────────────────────────────────────────────────────────────
+.plan-card__confirm {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    flex: 1;
+    animation: confirm-in 0.18s ease both;
+
+    &-label {
+        font-size: 0.85rem;
+        color: rgba(255,255,255,0.7);
+        text-align: center;
+    }
+
+    &-actions { display: flex; gap: 0.5rem; }
+
+    &-yes {
+        padding: 0.4rem 0.9rem;
+        background: transparent;
+        border: 1px solid rgba(#e74c3c, 0.5);
+        border-radius: 6px;
+        color: #e74c3c;
+        font-size: 0.78rem;
+        font-family: $font-stack;
+        cursor: pointer;
+        transition: background 0.2s;
+        &:hover { background: rgba(#e74c3c, 0.1); }
+    }
+
+    &-cancel {
+        padding: 0.4rem 0.9rem;
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 6px;
+        color: $text-muted;
+        font-size: 0.78rem;
+        font-family: $font-stack;
+        cursor: pointer;
+        transition: border-color 0.2s, color 0.2s;
+        &:hover { border-color: rgba(255,255,255,0.3); color: $text-primary; }
+    }
+}
+
+@keyframes confirm-in {
+    from { opacity: 0; transform: scale(0.95); }
+    to   { opacity: 1; transform: scale(1); }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EMPTY STATE
+// ─────────────────────────────────────────────────────────────────────────────
+.plans-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.85rem;
+    padding: 6rem 1rem;
+    text-align: center;
+    width: 100%;
+
+    &__icon  { font-size: 2.5rem; opacity: 0.4; }
+    &__title { font-size: 1rem; font-weight: 500; color: $text-primary; margin: 0; }
+    &__sub   { font-size: 0.875rem; color: $text-muted; margin: 0; }
+
+    &__btn {
+        margin-top: 0.5rem;
+        padding: 0.6rem 1.5rem;
+        background: $accent;
+        color: #fff;
+        border: none;
+        border-radius: 0.5rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        font-family: $font-stack;
+        cursor: pointer;
+        transition: opacity 0.2s;
+        &:hover { opacity: 0.85; }
+    }
+}

@@ -1,4 +1,4 @@
-import { getAllInterviewReports, generateInterviewReport, getInterviewReportById, generateResumePdf } from "../services/interview.api"
+import { getAllInterviewReports, generateInterviewReport, getInterviewReportById, generateResumePdf, deleteInterviewPlan } from "../services/interview.api"
 import { useContext, useEffect, useRef } from "react"
 import { InterviewContext } from "../interview.context"
 import { useParams } from "react-router"
@@ -54,6 +54,20 @@ export const useInterview = () => {
     // Aborts the currently in-flight generateReport request
     const cancelGeneration = () => {
         abortControllerRef.current?.abort()
+    }
+
+    // Deletes a plan by id — removes from local state without re-fetching
+    const deletePlan = async (id) => {
+        try {
+            await deleteInterviewPlan(id)
+            setReports(prev => prev.filter(r => r._id !== id))
+            toast.success("Plan deleted successfully.")
+            return true
+        } catch (error) {
+            const message = error.response?.data?.message || "Failed to delete plan."
+            toast.error(message)
+            return false
+        }
     }
 
     const getReportById = async (interviewId) => {
@@ -115,6 +129,6 @@ export const useInterview = () => {
         }
     }, [ interviewId ])
 
-    return { loading, report, reports, generateReport, cancelGeneration, getReportById, getReports, getResumePdf }
+    return { loading, report, reports, generateReport, cancelGeneration, deletePlan, getReportById, getReports, getResumePdf }
 
 }

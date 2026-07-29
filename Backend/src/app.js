@@ -64,9 +64,11 @@ app.use("/api", apiLimiter)
 // ── 6. Routes ─────────────────────────────────────────────────────────────────
 const authRouter = require("./routes/auth.routes")
 const interviewRouter = require("./routes/interview.routes")
+const mockInterviewRouter = require("./routes/mockInterview.routes")
 
 app.use("/api/auth", authRouter)
 app.use("/api/interview", interviewRouter)
+app.use("/api/mock-interview", mockInterviewRouter)
 
 
 // ── 7. Global Error Handler ───────────────────────────────────────────────────

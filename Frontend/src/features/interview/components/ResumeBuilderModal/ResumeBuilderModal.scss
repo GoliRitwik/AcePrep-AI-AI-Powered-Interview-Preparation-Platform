@@ -1,0 +1,404 @@
+// ── Resume Builder Modal ──────────────────────────────────────────────────────
+
+.resume-builder-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+
+    &__overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.75);
+        animation: rb-fade-in 0.2s ease;
+    }
+
+    &__card {
+        position: relative;
+        z-index: 1;
+        background: #0d1117;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        width: 100%;
+        max-width: 680px;
+        max-height: 85vh;
+        overflow-y: auto;
+        padding: 32px;
+        animation: rb-modal-in 0.2s ease;
+
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+        &::-webkit-scrollbar { width: 4px; }
+        &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+    }
+
+    &__close {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        background: transparent;
+        border: none;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 20px;
+        cursor: pointer;
+        line-height: 1;
+        padding: 4px;
+        transition: color 0.2s;
+        &:hover { color: rgba(255, 255, 255, 0.8); }
+    }
+
+    &__steps {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 28px;
+        font-size: 12px;
+    }
+
+    &__step {
+        color: rgba(255, 255, 255, 0.3);
+        white-space: nowrap;
+        padding: 0 2px;
+        transition: color 0.3s;
+        &--active { color: #ec4899; font-weight: 600; }
+        &--done   { color: rgba(255, 255, 255, 0.55); }
+    }
+
+    &__step-divider {
+        flex: 1;
+        height: 1px;
+        background: rgba(255, 255, 255, 0.1);
+        min-width: 20px;
+    }
+
+    &__header {
+        margin-bottom: 6px;
+        h2 { font-size: 20px; font-weight: 600; color: #fff; margin: 0 0 6px; }
+        p  { font-size: 13px; color: rgba(255,255,255,0.45); margin: 0; line-height: 1.5; }
+    }
+
+    &__section-title {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: rgba(255, 255, 255, 0.35);
+        margin: 20px 0 10px;
+    }
+
+    &__footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 24px;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    &__skip-link {
+        background: none;
+        border: none;
+        color: rgba(255,255,255,0.35);
+        font-size: 12px;
+        cursor: pointer;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        font-family: inherit;
+        padding: 0;
+        transition: color 0.2s;
+        &:hover { color: rgba(255,255,255,0.6); }
+    }
+
+    &__btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+        font-family: inherit;
+
+        &--primary {
+            background: #ec4899;
+            color: #fff;
+            &:hover:not(:disabled) { background: #db2777; }
+            &:disabled { opacity: 0.45; cursor: default; }
+        }
+
+        &--ghost {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.15);
+            color: rgba(255,255,255,0.65);
+            &:hover { border-color: rgba(255,255,255,0.35); color: #fff; }
+        }
+    }
+
+    &__confirm {
+        margin-top: 14px;
+        padding: 14px 16px;
+        background: rgba(239,68,68,0.08);
+        border: 1px solid rgba(239,68,68,0.2);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+
+        p { flex: 1; font-size: 13px; color: rgba(255,255,255,0.7); margin: 0; }
+
+        .rb-confirm-actions { display: flex; gap: 8px; }
+    }
+}
+
+@keyframes rb-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@keyframes rb-modal-in {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes rb-spin {
+    to { transform: rotate(360deg); }
+}
+
+// ── Skill Suggestion Card ─────────────────────────────────────────────────────
+.skill-suggestion {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+    margin-bottom: 8px;
+    transition: border-color 0.2s, background 0.2s;
+    cursor: pointer;
+    user-select: none;
+
+    &:hover { border-color: rgba(255,255,255,0.15); }
+    &--selected { border-color: rgba(236,72,153,0.3); background: rgba(236,72,153,0.04); }
+
+    &__checkbox { width: 16px; height: 16px; flex-shrink: 0; margin-top: 3px; accent-color: #ec4899; cursor: pointer; }
+    &__content  { flex: 1; min-width: 0; }
+    &__header   { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 3px; flex-wrap: wrap; }
+    &__name     { font-size: 14px; font-weight: 500; color: #fff; }
+    &__badge {
+        font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;
+        text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0;
+        &--high   { background: rgba(239,68,68,0.15);  color: #ef4444; }
+        &--medium { background: rgba(245,158,11,0.15); color: #f59e0b; }
+        &--low    { background: rgba(34,197,94,0.1);   color: #4ade80; }
+    }
+    &__reason { font-size: 12px; color: rgba(255,255,255,0.4); line-height: 1.45; margin: 0; }
+}
+
+// ── Custom skill input ────────────────────────────────────────────────────────
+.rb-custom-skill {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+
+    &__input {
+        flex: 1;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 13px;
+        color: #fff;
+        outline: none;
+        font-family: inherit;
+        transition: border-color 0.2s;
+        &::placeholder { color: rgba(255,255,255,0.3); }
+        &:focus { border-color: rgba(236,72,153,0.4); }
+    }
+
+    &__add-btn {
+        padding: 8px 14px;
+        background: rgba(236,72,153,0.12);
+        border: 1px solid rgba(236,72,153,0.25);
+        border-radius: 6px;
+        color: #ec4899;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.2s;
+        white-space: nowrap;
+        &:hover:not(:disabled) { background: rgba(236,72,153,0.2); }
+        &:disabled { opacity: 0.4; cursor: default; }
+    }
+
+    &__hint { font-size: 11px; color: rgba(255,255,255,0.25); margin: 6px 0 0; }
+}
+
+// ── Irrelevant skills collapsible ─────────────────────────────────────────────
+.rb-irrelevant {
+    margin-top: 20px;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 8px;
+    overflow: hidden;
+
+    &__toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 12px 14px;
+        background: rgba(255,255,255,0.03);
+        border: none;
+        cursor: pointer;
+        font-size: 12px;
+        color: rgba(255,255,255,0.45);
+        font-family: inherit;
+        transition: color 0.2s;
+        text-align: left;
+        &:hover { color: rgba(255,255,255,0.7); }
+        svg { transition: transform 0.2s; flex-shrink: 0; }
+        &--open svg { transform: rotate(180deg); }
+    }
+
+    &__body {
+        padding: 6px 14px 14px;
+        .rb-irrelevant__note { font-size: 11px; color: rgba(255,255,255,0.3); margin: 0 0 10px; line-height: 1.4; }
+    }
+}
+
+// ── Summary Cards ─────────────────────────────────────────────────────────────
+.rb-summaries {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 20px;
+    @media (max-width: 560px) { grid-template-columns: 1fr; }
+}
+
+.summary-card {
+    border: 2px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 18px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+
+    &:hover { border-color: rgba(255,255,255,0.2); }
+    &--selected { border-color: #ec4899; background: rgba(236,72,153,0.04); }
+
+    &__label {
+        display: inline-block;
+        font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px;
+        color: #ec4899; background: rgba(236,72,153,0.1); padding: 3px 9px; border-radius: 20px;
+        margin-bottom: 12px; align-self: flex-start;
+    }
+
+    &__text { font-size: 13px; color: rgba(255,255,255,0.78); line-height: 1.65; flex: 1; }
+
+    &__select-btn {
+        margin-top: 14px; padding: 7px 16px; border-radius: 6px; font-size: 12px;
+        cursor: pointer; border: 1px solid rgba(255,255,255,0.2); background: transparent;
+        color: rgba(255,255,255,0.6); font-family: inherit; font-weight: 500; transition: all 0.2s;
+        align-self: flex-start;
+        &:hover { border-color: #ec4899; color: #ec4899; }
+    }
+
+    &--selected &__select-btn { background: #ec4899; border-color: #ec4899; color: #fff; }
+}
+
+// ── Skill Evidence Section ────────────────────────────────────────────────────
+.skill-evidence {
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+
+    &__title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: rgba(255,255,255,0.35); margin: 0 0 10px; }
+
+    &__item {
+        font-size: 13px;
+        margin-bottom: 8px;
+        padding: 8px 10px;
+        border-radius: 6px;
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+
+        &--confirmed { color: #4ade80; background: rgba(74,222,128,0.06); }
+        &--warning   { color: #f59e0b; background: rgba(245,158,11,0.06); flex-direction: column; gap: 4px; }
+    }
+
+    .rb-evidence-row { display: flex; align-items: flex-start; gap: 8px; width: 100%; }
+    &__icon  { flex-shrink: 0; margin-top: 1px; }
+    &__warning-note { font-size: 12px; color: rgba(255,255,255,0.4); line-height: 1.45; margin: 2px 0 0 24px; }
+
+    &__include-row {
+        display: flex; align-items: center; gap: 6px; margin: 6px 0 0 24px;
+        font-size: 12px; color: rgba(255,255,255,0.5); cursor: pointer;
+        input[type="checkbox"] { accent-color: #f59e0b; width: 13px; height: 13px; }
+    }
+}
+
+// ── Generating Step ───────────────────────────────────────────────────────────
+.rb-generating {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 10px 0;
+
+    &__step {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        color: rgba(255,255,255,0.35);
+        transition: color 0.4s;
+        &--done   { color: #4ade80; }
+        &--active { color: #fff; font-weight: 500; }
+    }
+
+    &__icon {
+        width: 22px; height: 22px;
+        display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+
+        .rb-gen-spinner {
+            width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.15); border-top-color: #ec4899;
+            border-radius: 50%; animation: rb-spin 0.7s linear infinite;
+        }
+        .rb-gen-check  { font-size: 16px; color: #4ade80; }
+        .rb-gen-empty  { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.15); border-radius: 50%; }
+    }
+
+    &__success {
+        text-align: center; padding: 20px 0;
+        .rb-success-icon { font-size: 40px; margin-bottom: 10px; }
+        h3 { font-size: 18px; font-weight: 600; color: #fff; margin: 0 0 8px; }
+        p  { font-size: 13px; color: rgba(255,255,255,0.45); margin: 0; }
+    }
+}
+
+// ── Misc ──────────────────────────────────────────────────────────────────────
+.rb-step-error {
+    text-align: center; padding: 24px 0;
+    p { color: rgba(255,255,255,0.5); font-size: 13px; margin-bottom: 16px; }
+}
+
+.rb-empty-state {
+    padding: 16px;
+    border: 1px dashed rgba(255,255,255,0.12);
+    border-radius: 8px;
+    text-align: center;
+    p { font-size: 13px; color: rgba(255,255,255,0.35); line-height: 1.55; margin: 0; }
+}
+
+.rb-spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff;
+    border-radius: 50%; animation: rb-spin 0.7s linear infinite; display: inline-block;
+}
