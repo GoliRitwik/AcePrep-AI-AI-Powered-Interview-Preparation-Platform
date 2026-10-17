@@ -121,6 +121,7 @@ const interviewReportSchema = new mongoose.Schema({
 
 // Sparse index — only indexes docs that actually have a shareId set
 interviewReportSchema.index({ shareId: 1 }, { sparse: true })
+interviewReportSchema.index({ user: 1, createdAt: -1 })
 
 
 const interviewReportModel = mongoose.model("InterviewReport", interviewReportSchema);

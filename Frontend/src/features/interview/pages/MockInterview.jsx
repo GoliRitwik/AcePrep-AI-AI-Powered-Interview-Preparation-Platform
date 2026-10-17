@@ -21,7 +21,7 @@ import {
 // ── Constants ─────────────────────────────────────────────────────────────────
 const MIC_DELAY_AFTER_TTS_MS = 600
 const API_BASE_URL =
-    import.meta.env.VITE_API_URL || "http://localhost:3000"
+    import.meta.env.VITE_API_URL || "https://aceprep-backend-elm2.onrender.com"
 const MODE_OPTIONS = [
     { value: "technical", label: "Technical", desc: "DSA, system design, and project deep-dives" },
     { value: "behavioral", label: "Behavioral", desc: "STAR questions mapped to key competencies" },

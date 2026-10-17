@@ -115,5 +115,6 @@ const mockInterviewSchema = new mongoose.Schema({
 
 // Rate limiting index — prevents API spam on the respond endpoint
 mockInterviewSchema.index({ user: 1, updatedAt: -1 })
+mockInterviewSchema.index({ user: 1, report: 1, status: 1 })
 
 module.exports = mongoose.model("MockInterview", mockInterviewSchema)

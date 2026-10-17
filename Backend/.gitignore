@@ -27,3 +27,7 @@ Thumbs.db
 
 # ── Misc ──────────────────────────────────────────────────────────────────────
 mongoose/
+
+
+# Frontend production build
+Frontend/dist/
