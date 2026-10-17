@@ -1,8 +1,11 @@
 import axios from "axios"
 
+const API_BASE_URL =
+    import.meta.env.VITE_API_URL || "https://aceprep-backend-elm2.onrender.com"
+
 
 const api = axios.create({
-    baseURL: "http://localhost:3000",
+    baseURL: API_BASE_URL,
     withCredentials: true
 })
 
