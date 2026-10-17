@@ -35,6 +35,8 @@ const allowedOrigins = [
     "http://localhost:5174"
 ].filter(Boolean)
 
+console.log("Allowed CORS origins:", allowedOrigins)
+
 app.use(cors({
     origin: function (origin, callback) {
         // Allow requests without an Origin header (e.g. server-to-server)
