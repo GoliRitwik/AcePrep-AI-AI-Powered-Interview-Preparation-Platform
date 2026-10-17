@@ -1,14 +1,17 @@
-import axios from "axios";
+﻿import axios from "axios";
 
 // Authenticated API — sends cookies automatically
+const API_BASE_URL =
+    import.meta.env.VITE_API_URL || "http://localhost:3000"
+
 const api = axios.create({
-    baseURL: "http://localhost:3000",
+    baseURL: API_BASE_URL,
     withCredentials: true,
 })
 
 // Public API — never attaches auth cookies (used for shared report lookups)
 const publicApi = axios.create({
-    baseURL: "http://localhost:3000",
+    baseURL: API_BASE_URL,
     withCredentials: false,
 })
 
@@ -189,7 +192,7 @@ export const sendMockInterviewAnswer = async (id, answer, onToken, onComplete, o
     const streamPromise = (async () => {
         let response
         try {
-            response = await fetch(`http://localhost:3000/api/mock-interview/${id}/respond`, {
+            response = await fetch(`${API_BASE_URL}/api/mock-interview/${id}/respond`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ answer }),
