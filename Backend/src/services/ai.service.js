@@ -139,28 +139,53 @@ async function generateInterviewReport({ resume, selfDescription, jobDescription
 // PDF RENDERING — structure lives here, never touched by the LLM
 // ═══════════════════════════════════════════════════════════════════════════
 
+
 async function generatePdfFromHtml(htmlContent) {
-    const browser = await puppeteer.launch({
-        args: ["--no-sandbox", "--disable-setuid-sandbox"]
-    })
-    const page = await browser.newPage()
-    await page.setContent(htmlContent, { waitUntil: "networkidle0" })
-    await page.emulateMediaType("screen")
-    const pdfBuffer = await page.pdf({
-        format: "A4",
-        printBackground: true,
-        margin: { top: "0mm", bottom: "0mm", left: "0mm", right: "0mm" }
-    })
-    await browser.close()
-    return pdfBuffer
+    let browser
+
+    try {
+        browser = await puppeteer.launch({
+            headless: true,
+            args: [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage"
+            ]
+        })
+
+        const page = await browser.newPage()
+
+        await page.setContent(htmlContent, {
+            waitUntil: "networkidle0"
+        })
+
+        await page.emulateMediaType("screen")
+
+        const pdfBuffer = await page.pdf({
+            format: "A4",
+            printBackground: true,
+            margin: {
+                top: "0mm",
+                bottom: "0mm",
+                left: "0mm",
+                right: "0mm"
+            }
+        })
+
+        return pdfBuffer
+    } finally {
+        if (browser) {
+            await browser.close()
+        }
+    }
 }
+
 
 function buildResumeHtml(content) {
     const skillsRowsHtml = content.skillsRows.map(row =>
-        `<div class="skills-row">${
-            row.items.map(item =>
-                `<span class="skill-item"><strong>${item.label}:</strong> ${item.value}</span>`
-            ).join('\n      ')
+        `<div class="skills-row">${row.items.map(item =>
+            `<span class="skill-item"><strong>${item.label}:</strong> ${item.value}</span>`
+        ).join('\n      ')
         }</div>`
     ).join('\n  ')
 
@@ -423,21 +448,21 @@ async function generateResumeContent({
 
     const confirmedSkillsInstruction = confirmedSkills.length
         ? "ADDITIONAL CONFIRMED SKILLS TO INCLUDE IN SKILLS SECTION:\n" +
-          "Add each skill to the most logical category in skillsRows:\n" +
-          confirmedSkills.map(s => "• " + s).join("\n") + "\n\n"
+        "Add each skill to the most logical category in skillsRows:\n" +
+        confirmedSkills.map(s => "• " + s).join("\n") + "\n\n"
         : ""
 
     const evidenceInstruction = skillsWithEvidence.filter(s => s.hasEvidence && s.suggestedBulletIntegration).length
         ? "SKILLS WITH PROJECT EVIDENCE — integrate naturally into project bullets:\n" +
-          skillsWithEvidence
-              .filter(s => s.hasEvidence && s.suggestedBulletIntegration)
-              .map(s => "• " + s.skill + ": " + s.suggestedBulletIntegration)
-              .join("\n") + "\n\n"
+        skillsWithEvidence
+            .filter(s => s.hasEvidence && s.suggestedBulletIntegration)
+            .map(s => "• " + s.skill + ": " + s.suggestedBulletIntegration)
+            .join("\n") + "\n\n"
         : ""
 
     const deprioritizeInstruction = irrelevantSkillsToDeprioritize.length
         ? "SKILLS TO DEPRIORITIZE (move to end of their category row, do not delete):\n" +
-          irrelevantSkillsToDeprioritize.map(s => "• " + s).join("\n") + "\n\n"
+        irrelevantSkillsToDeprioritize.map(s => "• " + s).join("\n") + "\n\n"
         : ""
 
     const prompt =
@@ -458,16 +483,16 @@ async function generateResumeContent({
         "RULES — follow every rule strictly. Rule 0 overrides everything else:\n" +
         (chosenSummary
             ? "0. SUMMARY — CRITICAL RULE: The summary field in your JSON response must contain " +
-              "EXACTLY this text, character for character. Do not improve it, do not rephrase it, " +
-              "do not fix it. Copy it exactly as given, including any imperfections:\n" +
-              "\"" + chosenSummary + "\"\n" +
-              "Any deviation from this exact text is a critical failure.\n"
+            "EXACTLY this text, character for character. Do not improve it, do not rephrase it, " +
+            "do not fix it. Copy it exactly as given, including any imperfections:\n" +
+            "\"" + chosenSummary + "\"\n" +
+            "Any deviation from this exact text is a critical failure.\n"
             : "") +
         "1. summary: " + (chosenSummary
             ? "Use Rule 0. The summary JSON field must equal the exact text quoted in Rule 0."
             : "Write 2-3 sentences. Sentence 1 = who they are + strongest relevant skill. " +
-              "Sentence 2 = specific tech/achievements matching the JD. " +
-              "Never use these words: " + BANNED_WORDS.join(", ") + ".") + "\n" +
+            "Sentence 2 = specific tech/achievements matching the JD. " +
+            "Never use these words: " + BANNED_WORDS.join(", ") + ".") + "\n" +
         "2. skillsRows: Use exactly 4 rows maximum. Assign skills to standard ATS categories: " +
         "Row 1 = Languages & ML (Python + ML libraries + frameworks, other languages). " +
         "Row 2 = AI/ML (deep learning concepts, CV, LLMs, ML algorithms — written as a concept list). " +

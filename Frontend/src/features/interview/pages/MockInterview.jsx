@@ -20,7 +20,8 @@ import {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const MIC_DELAY_AFTER_TTS_MS = 600
-
+const API_BASE_URL =
+    import.meta.env.VITE_API_URL || "http://localhost:3000"
 const MODE_OPTIONS = [
     { value: "technical", label: "Technical", desc: "DSA, system design, and project deep-dives" },
     { value: "behavioral", label: "Behavioral", desc: "STAR questions mapped to key competencies" },
@@ -244,10 +245,10 @@ const MockInterview = () => {
             clearInterval(timerRef.current)
             // Fire-and-forget abandon if still in_progress
             if (sessionStatusRef.current === "in_progress" && sessionIdRef.current) {
-                fetch(`http://localhost:3000/api/mock-interview/${sessionIdRef.current}/abandon`, {
+                fetch(`${API_BASE_URL}/api/mock-interview/${sessionIdRef.current}/abandon`, {
                     method: "PATCH",
                     credentials: "include"
-                }).catch(() => {})
+                }).catch(() => { })
             }
         }
     }, [])
@@ -673,13 +674,13 @@ const MockInterview = () => {
                             )}
                             {micPermission === "granted" && !ttsOnlyNote && (
                                 <span className="mic-status mic-status--granted">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zm-1 19.93V23h2v-2.07A7 7 0 0 0 19 14h-2a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93z"/></svg>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zm-1 19.93V23h2v-2.07A7 7 0 0 0 19 14h-2a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93z" /></svg>
                                     Microphone ready
                                 </span>
                             )}
                             {micPermission === "denied" && (
                                 <span className="mic-status mic-status--denied">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zm-1 19.93V23h2v-2.07A7 7 0 0 0 19 14h-2a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93z"/></svg>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zm-1 19.93V23h2v-2.07A7 7 0 0 0 19 14h-2a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93z" /></svg>
                                     Microphone unavailable — text mode will be used
                                 </span>
                             )}

@@ -27,20 +27,26 @@ app.use(express.json())
 app.use(cookieParser())
 
 
-// ── 4. CORS ───────────────────────────────────────────────────────────────────
-// Must be after body parsers, before routes
-// CORS runs before rate limiter so 429 responses still have Access-Control-Allow-Origin
+
+// ── 4. CORS ──────────────────────────────────────────────────────────────────
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    "http://localhost:5173",
+    "http://localhost:5174"
+].filter(Boolean)
+
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow any localhost origin in development (covers port changes like 5173→5174)
-        if (!origin || /^http:\/\/localhost:\d+$/.test(origin)) {
-            callback(null, true)
-        } else {
-            callback(new Error("Not allowed by CORS"))
+        // Allow requests without an Origin header (e.g. server-to-server)
+        if (!origin || allowedOrigins.includes(origin)) {
+            return callback(null, true)
         }
+
+        return callback(new Error("Not allowed by CORS"))
     },
     credentials: true
 }))
+
 
 
 // ── 5. General API Rate Limiter ───────────────────────────────────────────────
