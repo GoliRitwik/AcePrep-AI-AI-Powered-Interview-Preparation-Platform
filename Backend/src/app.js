@@ -13,60 +13,58 @@ app.set("trust proxy", 1)
 
 
 // ── 1. Security Headers (helmet) ──────────────────────────────────────────
-// Sets secure HTTP headers (X-Frame-Options, X-Content-Type-Options, etc.)
-// crossOriginResourcePolicy disabled so our React SPA (different port/domain) can read responses
+// crossOriginResourcePolicy disabled so our React SPA (different domain) can read responses
 app.use(helmet({
     crossOriginResourcePolicy: false
 }))
 
 
 // ── 2. HTTP Request Logger (morgan) ─────────────────────────────────────────
-// 'dev' = colorised one-liner per request in development
-// 'combined' = Apache-style full log in production
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"))
 
 
 // ── 3. Body Parsers ──────────────────────────────────────────────────────────
+// cookieParser MUST be before auth routes so req.cookies is populated
 app.use(express.json())
 app.use(cookieParser())
 
 
 // ── 4. CORS ──────────────────────────────────────────────────────────────────
-const defaultOrigins = [
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
     "https://ace-prep-ai-ai-powered-interview-pr.vercel.app",
     "http://localhost:5173",
     "http://localhost:5174"
-]
-
-const envOrigins = (process.env.FRONTEND_URL || "")
-    .split(",")
-    .map(o => o.trim().replace(/\/$/, ""))
-    .filter(Boolean)
-
-const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]))
+].filter(Boolean)
 
 console.log("Allowed CORS origins:", allowedOrigins)
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests without an Origin header (e.g. server-to-server, curl, health checks)
-        if (!origin) {
+        if (!origin) return callback(null, true)
+
+        // Allow any Vercel preview deployment for this project
+        const isVercelPreview =
+            origin.includes("ace-prep-ai-ai-powered") &&
+            origin.endsWith(".vercel.app")
+
+        if (allowedOrigins.includes(origin) || isVercelPreview) {
             return callback(null, true)
         }
 
-        const normalized = origin.replace(/\/$/, "")
-        if (allowedOrigins.includes(normalized) || normalized.endsWith(".vercel.app")) {
-            return callback(null, true)
-        }
-
-        return callback(new Error(`Not allowed by CORS: ${origin}`))
+        return callback(new Error("Not allowed by CORS"))
     },
     credentials: true
 }))
 
 
-// ── 5. Health Check Endpoint (Lightweight & Unauthenticated) ────────────────
-// Fast liveness probe for monitoring tools and cold-start keep-alive
+// ── 5. Health Check ──────────────────────────────────────────────────────────
+// /health — keep-alive ping from frontend (FIX 5)
+app.get("/health", (req, res) => {
+    res.status(200).json({ status: "ok", timestamp: new Date() })
+})
+
+// /api/health — monitoring tools
 app.get("/api/health", (req, res) => {
     res.status(200).json({
         status: "ok",
@@ -78,12 +76,11 @@ app.get("/api/health", (req, res) => {
 
 // ── 6. General API Rate Limiter ──────────────────────────────────────────────
 // Covers ALL /api/* routes — 100 requests per 15 minutes per IP
-// Prevents general API abuse. Auth routes have a stricter additional limiter (in auth.routes.js)
 const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,   // 15 minute window
-    max: 100,                    // max 100 requests per window
-    standardHeaders: true,       // send RateLimit-* response headers (RFC standard)
-    legacyHeaders: false,        // disable old X-RateLimit-* headers
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
     handler: (req, res) => {
         res.status(429).json({
             success: false,

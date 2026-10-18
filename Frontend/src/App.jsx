@@ -4,6 +4,19 @@ import { AuthProvider } from "./features/auth/auth.context.jsx"
 import { InterviewProvider } from "./features/interview/interview.context.jsx"
 import { Toaster } from "react-hot-toast"
 
+// Ping backend on app load to wake up Render free instance
+// Fires immediately when app loads — Render starts waking up BEFORE user tries to login
+const warmUpBackend = () => {
+    const backendUrl =
+        import.meta.env.VITE_API_URL ||
+        "https://aceprep-backend-elm2.onrender.com"
+    fetch(`${backendUrl}/health`, { method: "GET" })
+        .then(() => console.log("Backend is awake"))
+        .catch(() => console.log("Backend warming up..."))
+}
+warmUpBackend()
+
+
 function App() {
 
   return (

@@ -3,32 +3,6 @@ const bcrypt = require("bcryptjs")
 const jwt = require("jsonwebtoken")
 const tokenBlacklistModel = require("../models/blacklist.model")
 
-// Determine if running in production (either explicitly via NODE_ENV, Render env, or non-dev)
-const isProduction =
-    process.env.NODE_ENV === "production" ||
-    process.env.RENDER === "true" ||
-    (process.env.NODE_ENV && process.env.NODE_ENV !== "development")
-
-/**
- * Standard cookie configuration for JWT session token.
- * In production cross-site contexts (Vercel -> Render), browsers require
- * sameSite: "none" AND secure: true for credentials to be included.
- */
-const getCookieOptions = () => ({
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-    path: "/",
-    maxAge: 24 * 60 * 60 * 1000 // expires in 1 day
-})
-
-const getClearCookieOptions = () => ({
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-    path: "/"
-})
-
 /**
  * @name registerUserController
  * @description register a new user, expects username, email and password in the request body
@@ -70,7 +44,12 @@ async function registerUserController(req, res) {
         { expiresIn: "1d" }
     )
 
-    res.cookie("token", token, getCookieOptions())
+    res.cookie("token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: 24 * 60 * 60 * 1000  // 1 day
+    })
 
     res.status(201).json({
         success: true,
@@ -118,7 +97,12 @@ async function loginUserController(req, res) {
         { expiresIn: "1d" }
     )
 
-    res.cookie("token", token, getCookieOptions())
+    res.cookie("token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        maxAge: 24 * 60 * 60 * 1000  // 1 day
+    })
 
     res.status(200).json({
         success: true,
@@ -144,7 +128,11 @@ async function logoutUserController(req, res) {
         await tokenBlacklistModel.create({ token })
     }
 
-    res.clearCookie("token", getClearCookieOptions())
+    res.clearCookie("token", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+    })
 
     res.status(200).json({
         success: true,
