@@ -145,7 +145,6 @@ async function generatePdfFromHtml(htmlContent) {
     const isProduction = process.env.NODE_ENV === "production"
 
     if (isProduction) {
-      // Production: use @sparticuz/chromium for Render/serverless
       const chromium = require("@sparticuz/chromium")
       const puppeteerCore = require("puppeteer-core")
 
@@ -156,10 +155,13 @@ async function generatePdfFromHtml(htmlContent) {
         headless: chromium.headless,
       })
     } else {
-      // Development: use regular puppeteer with local Chrome
       const puppeteer = require("puppeteer")
       browser = await puppeteer.launch({
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage"
+        ],
         headless: true
       })
     }
@@ -178,7 +180,7 @@ async function generatePdfFromHtml(htmlContent) {
 
   } finally {
     if (browser) {
-      await browser.close()
+      await browser.close().catch(() => {})
     }
   }
 }
