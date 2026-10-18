@@ -1,7 +1,6 @@
 const { GoogleGenAI } = require("@google/genai")
 const { z } = require("zod")
 const { zodToJsonSchema } = require("zod-to-json-schema")
-const puppeteer = require("puppeteer")
 
 const ai = new GoogleGenAI({
     apiKey: process.env.GOOGLE_GENAI_API_KEY
@@ -141,43 +140,47 @@ async function generateInterviewReport({ resume, selfDescription, jobDescription
 
 
 async function generatePdfFromHtml(htmlContent) {
-    let browser
+  let browser = null
+  try {
+    const isProduction = process.env.NODE_ENV === "production"
 
-    try {
-        browser = await puppeteer.launch({
-            headless: true,
-            args: [
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage"
-            ]
-        })
+    if (isProduction) {
+      // Production: use @sparticuz/chromium for Render/serverless
+      const chromium = require("@sparticuz/chromium")
+      const puppeteerCore = require("puppeteer-core")
 
-        const page = await browser.newPage()
-
-        await page.setContent(htmlContent, {
-            waitUntil: "networkidle0"
-        })
-
-        await page.emulateMediaType("screen")
-
-        const pdfBuffer = await page.pdf({
-            format: "A4",
-            printBackground: true,
-            margin: {
-                top: "0mm",
-                bottom: "0mm",
-                left: "0mm",
-                right: "0mm"
-            }
-        })
-
-        return pdfBuffer
-    } finally {
-        if (browser) {
-            await browser.close()
-        }
+      browser = await puppeteerCore.launch({
+        args: chromium.args,
+        defaultViewport: chromium.defaultViewport,
+        executablePath: await chromium.executablePath(),
+        headless: chromium.headless,
+      })
+    } else {
+      // Development: use regular puppeteer with local Chrome
+      const puppeteer = require("puppeteer")
+      browser = await puppeteer.launch({
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        headless: true
+      })
     }
+
+    const page = await browser.newPage()
+    await page.setContent(htmlContent, { waitUntil: "networkidle0" })
+    await page.emulateMediaType("screen")
+
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "0mm", bottom: "0mm", left: "0mm", right: "0mm" }
+    })
+
+    return pdfBuffer
+
+  } finally {
+    if (browser) {
+      await browser.close()
+    }
+  }
 }
 
 
