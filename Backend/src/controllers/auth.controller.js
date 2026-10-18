@@ -20,7 +20,7 @@ async function registerUserController(req, res) {
     }
 
     const isUserAlreadyExists = await userModel.findOne({
-        $or: [ { username }, { email } ]
+        $or: [{ username }, { email }]
     })
 
     if (isUserAlreadyExists) {
@@ -48,7 +48,7 @@ async function registerUserController(req, res) {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-        maxAge: 24 * 60 * 60 * 1000  // 1 day
+        maxAge: 24 * 60 * 60 * 1000
     })
 
     res.status(201).json({
