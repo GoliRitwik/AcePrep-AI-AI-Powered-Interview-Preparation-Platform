@@ -130,35 +130,7 @@ const Plans = () => {
     return (
         <div className="plans-page">
 
-            {/* Navbar */}
-            <nav className="app-navbar">
-                <div className="nav-logo">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
-                    </svg>
-                    AI Interview <span>Prep</span>
-                </div>
-
-                <div className="nav-links">
-                    <Link to="/"      className={`nav-link${location.pathname === '/'      ? ' nav-link--active' : ''}`}>New Plan</Link>
-                    <Link to="/plans" className={`nav-link${location.pathname === '/plans' ? ' nav-link--active' : ''}`}>My Plans</Link>
-                </div>
-
-                <div className="nav-user">
-                    <div className="user-greeting">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
-                        </svg>
-                        Hello, <strong>{user?.username}</strong>
-                    </div>
-                    <button className="logout-btn" onClick={handleLogout}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
-                        </svg>
-                        Logout
-                    </button>
-                </div>
-            </nav>
+            
 
             <div className="plans-main">
 

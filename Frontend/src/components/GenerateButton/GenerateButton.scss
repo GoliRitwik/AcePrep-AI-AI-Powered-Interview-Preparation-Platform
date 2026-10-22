@@ -26,19 +26,7 @@
 
     // ── Horizontal shimmer sweep ──────────────────────────────────────────────
     &__sweep {
-        position: absolute;
-        top: 0;
-        left: -40%;
-        width: 40%;
-        height: 100%;
-        background: linear-gradient(
-            90deg,
-            transparent,
-            rgba(255, 255, 255, 0.16),
-            transparent
-        );
-        z-index: 0;
-        pointer-events: none;
+        display: none;
     }
 
     // On hover (idle): sweep plays once and stops

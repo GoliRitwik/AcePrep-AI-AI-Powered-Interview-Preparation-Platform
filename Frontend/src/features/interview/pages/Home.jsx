@@ -1,30 +1,117 @@
-import React, { useState, useRef } from 'react'
-import "../style/home.scss"
+import React, { useState, useRef, useEffect, useMemo } from 'react'
+import '../style/home.scss'
 import { useInterview } from '../hooks/useInterview.js'
 import { useNavigate, Link, useLocation } from 'react-router'
-import { useAuth } from '../../auth/hooks/useAuth.js'
 import LoadingOverlay from '../../../components/LoadingOverlay/LoadingOverlay.jsx'
-import GenerateButton from '../../../components/GenerateButton/GenerateButton.jsx'
 import toast from 'react-hot-toast'
 
-const Home = () => {
+// ── Icons ─────────────────────────────────────────────────────────────────────
+const TrashIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+        fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="3 6 5 6 21 6" />
+        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+        <path d="M10 11v6M14 11v6" />
+        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+)
 
-    const { loading, generateReport, cancelGeneration, reports } = useInterview()
-    const { user, handleLogout } = useAuth()
-    const [ jobDescription, setJobDescription ] = useState("")
-    const [ selfDescription, setSelfDescription ] = useState("")
-    const resumeInputRef = useRef()
+const BriefcaseIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
+        fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+    </svg>
+)
+
+// ── Circular Score Ring (SVG) ─────────────────────────────────────────────────
+const RING_R = 12
+const RING_C = 2 * Math.PI * RING_R
+
+const scoreColor = (score) => {
+    if (score >= 80) return '#22c55e'
+    if (score >= 60) return '#f59e0b'
+    return '#ef4444'
+}
+
+const ScoreRing = ({ score }) => {
+    const color = scoreColor(score)
+    const dash = (score / 100) * RING_C
+
+    return (
+        <div className="score-ring">
+            <svg width="32" height="32" viewBox="0 0 32 32">
+                <circle
+                    cx="16" cy="16" r={RING_R}
+                    fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3"
+                />
+                <circle
+                    cx="16" cy="16" r={RING_R}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth="3"
+                    strokeDasharray={`${dash} ${RING_C}`}
+                    strokeLinecap="round"
+                    transform="rotate(-90 16 16)"
+                />
+            </svg>
+            <span className="score-ring__label" style={{ color }}>{score}%</span>
+        </div>
+    )
+}
+
+// ── Version Tag Helper ────────────────────────────────────────────────────────
+const addVersionTags = (reportsList) => {
+    const byTitle = {}
+    const sortedAsc = [...reportsList].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+
+    sortedAsc.forEach(r => {
+        if (!byTitle[r.title]) byTitle[r.title] = []
+        byTitle[r.title].push(r._id)
+    })
+
+    const versionMap = {}
+    Object.values(byTitle).forEach(ids => {
+        if (ids.length > 1) {
+            ids.slice(1).forEach((id, i) => { versionMap[id] = `v${i + 2}` })
+        }
+    })
+
+    return reportsList.map(r => ({ ...r, versionTag: versionMap[r._id] ?? null }))
+}
+
+const Home = () => {
+    const { loading, generateReport, cancelGeneration, reports, deletePlan } = useInterview()
+    const [jobDescription, setJobDescription] = useState("")
+    const [selfDescription, setSelfDescription] = useState("")
+    const resumeInputRef = useRef(null)
     const [selectedFile, setSelectedFile] = useState(null)
     const [isDragging, setIsDragging] = useState(false)
+    const [isGenerating, setIsGenerating] = useState(false)
 
-    // Formats raw bytes into a human-readable string (KB / MB)
+    // History card delete confirmation
+    const [confirmId, setConfirmId] = useState(null)
+    const [deletingId, setDeletingId] = useState(null)
+
+    const navigate = useNavigate()
+    const location = useLocation()
+
+    // Smooth scroll if URL has #history
+    useEffect(() => {
+        if (location.hash === '#history') {
+            const el = document.getElementById('history')
+            if (el) {
+                setTimeout(() => el.scrollIntoView({ behavior: 'smooth' }), 50)
+            }
+        }
+    }, [location])
+
     const formatFileSize = (bytes) => {
         if (bytes < 1024) return `${bytes} B`
         if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
         return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
     }
 
-    // Single handler for both click-to-select and drag-and-drop
     const handleFileSelect = (file) => {
         if (!file) return
         if (file.size > 5 * 1024 * 1024) {
@@ -34,270 +121,291 @@ const Home = () => {
         setSelectedFile(file)
     }
 
-    const handleRemoveFile = () => {
+    const handleRemoveFile = (e) => {
+        e.stopPropagation()
         setSelectedFile(null)
-        if (resumeInputRef.current) resumeInputRef.current.value = ''   // allow re-selecting the same file
+        if (resumeInputRef.current) resumeInputRef.current.value = ''
     }
 
-    const navigate = useNavigate()
-    const location = useLocation()
-
-    // Tracks report generation specifically (separate from hook's loading state
-    // which also fires on initial page load)
-    const [isGenerating, setIsGenerating] = useState(false)
-
     const handleGenerateReport = async () => {
-        // Use selectedFile state — this is set by BOTH click-select and drag-and-drop.
-        // Never read resumeInputRef.current.files[0] here: drag-and-drop doesn't
-        // populate the <input> file list, so it would always be undefined.
+        if (!jobDescription.trim()) {
+            toast.error("Please provide a job description.")
+            return
+        }
+        if (!selectedFile && !selfDescription.trim()) {
+            toast.error("Please upload a resume or provide a quick self-description.")
+            return
+        }
+
         const resumeFile = selectedFile || undefined
         setIsGenerating(true)
         try {
             const data = await generateReport({ jobDescription, selfDescription, resumeFile })
-            // data is null when user cancelled — don't navigate in that case
             if (data?._id) {
                 navigate(`/interview/${data._id}`)
             }
         } finally {
-            // Always reset — even if the API call throws
             setIsGenerating(false)
         }
     }
 
-    // Only show the simple loading screen on initial page load (reports fetching)
-    // During generation, isGenerating=true so we skip this and show the overlay instead
-    if (loading && !isGenerating) {
-        return (
-            <main className='loading-screen'>
-                <h1>Loading your interview plan...</h1>
-            </main>
-        )
+    // Version-tagged reports
+    const versionedReports = useMemo(() => {
+        if (!reports || reports.length === 0) return []
+        return addVersionTags(reports)
+    }, [reports])
+
+    // Recent reports up to 6 for the home page section
+    const displayedReports = versionedReports.slice(0, 6)
+
+    const onTrashClick = (e, id) => {
+        e.stopPropagation()
+        setConfirmId(id)
+    }
+
+    const onDeleteYes = async (e, id) => {
+        e.stopPropagation()
+        setDeletingId(id)
+        const ok = await deletePlan(id)
+        setDeletingId(null)
+        if (ok) setConfirmId(null)
+    }
+
+    const onDeleteCancel = (e) => {
+        e.stopPropagation()
+        setConfirmId(null)
+    }
+
+    const onCardClick = (id) => {
+        if (confirmId === id) return
+        navigate(`/interview/${id}`)
     }
 
     return (
-        <div className='home-page'>
-
-            {/* ── Navbar ── */}
-            <nav className='app-navbar'>
-                <div className='nav-logo'>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
-                    </svg>
-                    AI Interview <span>Prep</span>
+        <div className="home-container">
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* TOP SECTION — Resume Generator                                */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <section className="generator-section">
+                <div className="section-header-left">
+                    <h1 className="generator-title">Optimize your resume</h1>
+                    <p className="generator-subtitle">
+                        Paste a job description and upload your resume. We'll tailor it and score it against ATS in under 30 seconds.
+                    </p>
                 </div>
 
-                {/* Navigation links */}
-                <div className='nav-links'>
-                    <Link
-                        to="/"
-                        className={`nav-link${location.pathname === '/' ? ' nav-link--active' : ''}`}
-                    >
-                        New Plan
-                    </Link>
-                    <Link
-                        to="/plans"
-                        className={`nav-link${location.pathname === '/plans' ? ' nav-link--active' : ''}`}
-                    >
-                        My Plans
-                    </Link>
-                </div>
-
-                <div className='nav-user'>
-                    <div className='user-greeting'>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                            <circle cx="12" cy="7" r="4" />
-                        </svg>
-                        Hello, <strong>{user?.username}</strong>
-                    </div>
-                    <button className='logout-btn' onClick={handleLogout}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                            <polyline points="16 17 21 12 16 7" />
-                            <line x1="21" y1="12" x2="9" y2="12" />
-                        </svg>
-                        Logout
-                    </button>
-                </div>
-            </nav>
-
-            {/* Page Header */}
-            <header className='page-header'>
-                <h1>Create Your Custom <span className='highlight'>Interview Plan</span></h1>
-                <p>Let our AI analyze the job requirements and your unique profile to build a winning strategy.</p>
-            </header>
-
-            {/* Main Card */}
-            <div className='interview-card'>
-                <div className='interview-card__body'>
-
-                    {/* Left Panel - Job Description */}
-                    <div className='panel panel--left'>
-                        <div className='panel__header'>
-                            <span className='panel__icon'>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></svg>
-                            </span>
-                            <h2>Target Job Description</h2>
-                            <span className='badge badge--required'>Required</span>
+                <div className="generator-form-grid">
+                    {/* ── Left Column (60%): Job Description ── */}
+                    <div className="form-col form-col--left">
+                        <div className="field-header">
+                            <label className="field-label" htmlFor="jobDescription">
+                                JOB DESCRIPTION <span className="required-asterisk">*</span>
+                            </label>
                         </div>
                         <textarea
-                            onChange={(e) => { setJobDescription(e.target.value) }}
-                            className='panel__textarea'
-                            placeholder={`Paste the full job description here...\ne.g. 'Senior Frontend Engineer at Google requires proficiency in React, TypeScript, and large-scale system design...'`}
+                            id="jobDescription"
+                            name="jobDescription"
+                            className="jd-textarea"
+                            placeholder="Paste the full job description here..."
+                            value={jobDescription}
                             maxLength={5000}
+                            onChange={(e) => setJobDescription(e.target.value)}
                         />
-                        <div className='char-counter'>0 / 5000 chars</div>
+                        <div className="char-count">
+                            {jobDescription.length} / 5000
+                        </div>
                     </div>
 
-                    {/* Vertical Divider */}
-                    <div className='panel-divider' />
-
-                    {/* Right Panel - Profile */}
-                    <div className='panel panel--right'>
-                        <div className='panel__header'>
-                            <span className='panel__icon'>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                            </span>
-                            <h2>Your Profile</h2>
-                        </div>
-
-                        {/* Upload Resume */}
-                        <div className='upload-section'>
-                            <label className='section-label'>
-                                Upload Resume
-                                <span className='badge badge--best'>Best Results</span>
+                    {/* ── Right Column (40%): Resume & Self-Description ── */}
+                    <div className="form-col form-col--right">
+                        <div className="field-header">
+                            <label className="field-label">
+                                YOUR RESUME
                             </label>
+                        </div>
 
-                            {/* Hidden file input — triggered programmatically */}
-                            <input
-                                ref={resumeInputRef}
-                                type='file'
-                                id='resume'
-                                name='resume'
-                                accept='.pdf,.docx'
-                                style={{ display: 'none' }}
-                                onChange={(e) => handleFileSelect(e.target.files[0])}
-                            />
+                        {/* Hidden native input */}
+                        <input
+                            ref={resumeInputRef}
+                            type="file"
+                            id="resume"
+                            name="resume"
+                            accept=".pdf,.docx"
+                            style={{ display: 'none' }}
+                            onChange={(e) => handleFileSelect(e.target.files[0])}
+                        />
 
-                            {selectedFile ? (
-                                /* ── File preview card ── */
-                                <div className='file-preview'>
-                                    <span className='file-preview__icon'>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                            <polyline points="14 2 14 8 20 8" />
-                                            <line x1="16" y1="13" x2="8" y2="13" />
-                                            <line x1="16" y1="17" x2="8" y2="17" />
-                                            <polyline points="10 9 9 9 8 9" />
-                                        </svg>
-                                    </span>
-                                    <div className='file-preview__info'>
-                                        <p className='file-preview__name' title={selectedFile.name}>
-                                            {selectedFile.name}
-                                        </p>
-                                        <p className='file-preview__size'>{formatFileSize(selectedFile.size)}</p>
-                                    </div>
-                                    <button
-                                        className='file-preview__remove'
-                                        onClick={handleRemoveFile}
-                                        title='Remove file'
-                                        type='button'
-                                    >
-                                        ✕
-                                    </button>
+                        {selectedFile ? (
+                            <div className="file-preview-box">
+                                <div className="file-info-col">
+                                    <span className="file-name" title={selectedFile.name}>{selectedFile.name}</span>
+                                    <span className="file-size">{formatFileSize(selectedFile.size)}</span>
                                 </div>
-                            ) : (
-                                /* ── Drop zone — div with full drag handlers ── */
-                                <div
-                                    className={`dropzone${isDragging ? ' dropzone--dragging' : ''}`}
-                                    onClick={() => resumeInputRef.current?.click()}
-                                    onDragEnter={(e) => {
-                                        e.preventDefault()
-                                        e.stopPropagation()
-                                        setIsDragging(true)
-                                    }}
-                                    onDragOver={(e) => {
-                                        // MUST call preventDefault() or the browser
-                                        // treats the drop as a navigation event
-                                        e.preventDefault()
-                                        e.stopPropagation()
-                                        setIsDragging(true)
-                                    }}
-                                    onDragLeave={(e) => {
-                                        e.preventDefault()
-                                        e.stopPropagation()
-                                        // Only clear when leaving the zone entirely,
-                                        // not when moving between child elements
-                                        if (!e.currentTarget.contains(e.relatedTarget)) {
-                                            setIsDragging(false)
-                                        }
-                                    }}
-                                    onDrop={(e) => {
-                                        e.preventDefault()
-                                        e.stopPropagation()
-                                        setIsDragging(false)
-                                        // Drop events use dataTransfer.files — NOT e.target.files
-                                        handleFileSelect(e.dataTransfer.files[0])
-                                    }}
+                                <button
+                                    type="button"
+                                    className="file-remove-btn"
+                                    onClick={handleRemoveFile}
+                                    title="Remove file"
                                 >
-                                    <span className='dropzone__icon'>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" /></svg>
-                                    </span>
-                                    <p className='dropzone__title'>
-                                        {isDragging ? 'Drop your file here' : 'Click to upload or drag & drop'}
-                                    </p>
-                                    <p className='dropzone__subtitle'>PDF or DOCX · Max 5MB</p>
-                                </div>
-                            )}
+                                    ✕
+                                </button>
+                            </div>
+                        ) : (
+                            <div
+                                className={`upload-dropzone${isDragging ? ' upload-dropzone--dragging' : ''}`}
+                                onClick={() => resumeInputRef.current?.click()}
+                                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                                onDragLeave={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (!e.currentTarget.contains(e.relatedTarget)) setIsDragging(false);
+                                }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setIsDragging(false);
+                                    handleFileSelect(e.dataTransfer.files[0]);
+                                }}
+                            >
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="dropzone-icon">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="17 8 12 3 7 8" />
+                                    <line x1="12" y1="3" x2="12" y2="15" />
+                                </svg>
+                                <p className="dropzone-text">
+                                    {isDragging ? "Drop your resume here" : "Click to upload or drag & drop"}
+                                </p>
+                                <span className="dropzone-hint">PDF or DOCX (Max 5MB)</span>
+                            </div>
+                        )}
+
+                        <div className="or-divider">
+                            <span>OR</span>
                         </div>
 
-                        {/* OR Divider */}
-                        <div className='or-divider'><span>OR</span></div>
-
-                        {/* Quick Self-Description */}
-                        <div className='self-description'>
-                            <label className='section-label' htmlFor='selfDescription'>Quick Self-Description</label>
-                            <textarea
-                                onChange={(e) => { setSelfDescription(e.target.value) }}
-                                id='selfDescription'
-                                name='selfDescription'
-                                className='panel__textarea panel__textarea--short'
-                                placeholder="Briefly describe your experience, key skills, and years of experience if you don't have a resume handy..."
-                            />
-                        </div>
-
-                        {/* Info Box */}
-                        <div className='info-box'>
-                            <span className='info-box__icon'>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" stroke="#1a1f27" strokeWidth="2" /><line x1="12" y1="16" x2="12.01" y2="16" stroke="#1a1f27" strokeWidth="2" /></svg>
-                            </span>
-                            <p>Either a <strong>Resume</strong> or a <strong>Self Description</strong> is required to generate a personalized plan.</p>
-                        </div>
+                        <textarea
+                            id="selfDescription"
+                            name="selfDescription"
+                            className="self-textarea"
+                            placeholder="Briefly describe your experience if you don't have a resume ready..."
+                            value={selfDescription}
+                            onChange={(e) => setSelfDescription(e.target.value)}
+                        />
                     </div>
                 </div>
 
-                {/* Card Footer */}
-                <div className='interview-card__footer'>
-                    <span className='footer-info'>AI-Powered Strategy Generation &bull; Approx 30s</span>
-                    <GenerateButton
+                {/* ── Form Footer Action ── */}
+                <div className="generator-action-row">
+                    <button
+                        type="button"
+                        className="optimize-btn"
                         onClick={handleGenerateReport}
-                        isLoading={isGenerating}
-                        label="Generate My Interview Strategy"
-                        loadingLabel="Generating your plan…"
-                    />
+                        disabled={isGenerating}
+                    >
+                        {isGenerating ? "Optimizing resume..." : "Optimize Resume →"}
+                    </button>
+                    <span className="action-subtext">Takes ~20–30 seconds · ATS scored</span>
                 </div>
-            </div>
+            </section>
 
-            {/* Page Footer */}
-            <footer className='page-footer'>
-                <a href='#'>Privacy Policy</a>
-                <a href='#'>Terms of Service</a>
-                <a href='#'>Help Center</a>
-            </footer>
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* HISTORY SECTION                                                */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <section id="history" className="history-section">
+                <div className="history-header">
+                    <h2 className="history-title">Recent Resumes</h2>
+                    {reports && reports.length > 6 && (
+                        <Link to="/plans" className="history-view-all">
+                            View all →
+                        </Link>
+                    )}
+                </div>
 
-            {/* Full-screen overlay — appears during report generation only */}
+                {(!reports || reports.length === 0) ? (
+                    <div className="history-empty">
+                        <p>No resumes optimized yet. Paste a job description above to get started.</p>
+                    </div>
+                ) : (
+                    <div className="history-grid">
+                        {displayedReports.map((item) => {
+                            const isConfirm = confirmId === item._id
+                            const isDeleting = deletingId === item._id
+
+                            return (
+                                <div
+                                    key={item._id}
+                                    className={`history-card${isConfirm ? ' history-card--confirm' : ''}`}
+                                    onClick={() => onCardClick(item._id)}
+                                >
+                                    {isConfirm ? (
+                                        <div className="history-card__confirm">
+                                            <span className="confirm-text">Delete this resume?</span>
+                                            <div className="confirm-buttons">
+                                                <button
+                                                    className="confirm-btn-yes"
+                                                    onClick={(e) => onDeleteYes(e, item._id)}
+                                                    disabled={isDeleting}
+                                                    type="button"
+                                                >
+                                                    {isDeleting ? "Deleting..." : "Delete"}
+                                                </button>
+                                                <button
+                                                    className="confirm-btn-cancel"
+                                                    onClick={onDeleteCancel}
+                                                    type="button"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="history-card__header">
+                                                <div className="card-title-group">
+                                                    <div className="card-icon-box">
+                                                        <BriefcaseIcon />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="card-title">
+                                                            {item.title || "Untitled Position"}
+                                                            {item.versionTag && (
+                                                                <span className="card-version-tag">{item.versionTag}</span>
+                                                            )}
+                                                        </h3>
+                                                        <span className="card-date">
+                                                            {new Date(item.createdAt).toLocaleDateString('en-US', {
+                                                                year: 'numeric', month: 'short', day: 'numeric'
+                                                            })}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    className="card-trash-btn"
+                                                    onClick={(e) => onTrashClick(e, item._id)}
+                                                    title="Delete"
+                                                >
+                                                    <TrashIcon />
+                                                </button>
+                                            </div>
+
+                                            <div className="history-card__bottom">
+                                                <ScoreRing score={item.matchScore ?? 0} />
+                                                <span className="card-match-label">match score</span>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+            </section>
+
+            {/* Loading Overlay when generating */}
             <LoadingOverlay isVisible={isGenerating} onCancel={cancelGeneration} />
-
         </div>
     )
 }

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import '../style/interview.scss'
 import { useInterview } from '../hooks/useInterview.js'
-import { useNavigate, useParams } from 'react-router'
-import { shareReport, toggleShare } from '../services/interview.api.js'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 import toast from 'react-hot-toast'
 import GenerateButton from '../../../components/GenerateButton/GenerateButton.jsx'
 import ResumeBuilderModal from '../components/ResumeBuilderModal/ResumeBuilderModal.jsx'
@@ -64,85 +63,13 @@ const RoadMapDay = ({ day }) => (
 const Interview = () => {
     const [ activeNav, setActiveNav ] = useState('technical')
     const { report, getReportById, loading, getResumePdf } = useInterview()
-    const { interviewId } = useParams()
+    const { interviewId, id: routeId } = useParams()
+    const effectiveId = interviewId || routeId
+    const [searchParams] = useSearchParams()
+    const sectionParam = searchParams.get('section')
     const navigate = useNavigate()
 
-    // ── Share state ──────────────────────────────────────────────────────────
-    const [shareOpen,    setShareOpen]    = useState(false)
-    const [shareUrl,     setShareUrl]     = useState('')
-    const [shareId,      setShareId]      = useState(null)
-    const [isShared,     setIsShared]     = useState(false)
-    const [shareLoading, setShareLoading] = useState(false)
-    const [copyDone,     setCopyDone]     = useState(false)
-
-    // ── PDF download loading — isolated so it doesn't trigger the page spinner ─
-    const [isPdfLoading, setIsPdfLoading] = useState(false)
-
-    // ── Resume Builder modal ──────────────────────────────────────────────────
-    const [showResumeBuilder, setShowResumeBuilder] = useState(false)
-
-    useEffect(() => {
-        if (interviewId) {
-            getReportById(interviewId)
-        }
-    }, [ interviewId ])
-
-    // Pre-populate share state when report loads (if already shared)
-    useEffect(() => {
-        if (report) {
-            setIsShared(report.isShared || false)
-            setShareId(report.shareId || null)
-            if (report.shareId) {
-                setShareUrl(`${window.location.origin}/share/${report.shareId}`)
-            }
-            // Auto-open the share box if the report is already shared
-            if (report.isShared && report.shareId) {
-                setShareOpen(true)
-            }
-        }
-    }, [report])
-
-    // ── Share handlers ───────────────────────────────────────────────────────
-    const handleShareClick = async () => {
-        if (shareOpen && shareId) {
-            // Just toggle the box closed if already generated
-            setShareOpen(s => !s)
-            return
-        }
-
-        // Generate the share link for the first time
-        setShareLoading(true)
-        try {
-            const data = await shareReport(interviewId)
-            setShareId(data.shareId)
-            setShareUrl(data.shareUrl)
-            setIsShared(true)
-            setShareOpen(true)
-        } catch {
-            toast.error('Failed to generate share link.')
-        } finally {
-            setShareLoading(false)
-        }
-    }
-
-    const handleCopy = () => {
-        navigator.clipboard.writeText(shareUrl).then(() => {
-            setCopyDone(true)
-            toast.success('Link copied!')
-            setTimeout(() => setCopyDone(false), 2000)
-        })
-    }
-
-    const handleToggle = async () => {
-        const next = !isShared
-        try {
-            await toggleShare(interviewId, next)
-            setIsShared(next)
-            toast(next ? 'Link enabled' : 'Link disabled', { icon: next ? '🔓' : '🔒' })
-        } catch {
-            toast.error('Failed to update sharing.')
-        }
-    }
+    
 
     if (loading || !report) {
         return (
@@ -181,7 +108,7 @@ const Interview = () => {
                         {/* Start Mock Interview */}
                         <button
                             className="button primary-button"
-                            onClick={() => navigate(`/mock-interview/${interviewId}`)}
+                            onClick={() => navigate(`/mock-interview/${effectiveId}`)}
                             style={{ marginBottom: '0.25rem' }}
                         >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -192,21 +119,6 @@ const Interview = () => {
                             Mock Interview
                         </button>
 
-                        {/* Share button */}
-                        <button
-                            className={`button share-button${shareOpen ? ' share-button--active' : ''}`}
-                            onClick={handleShareClick}
-                            disabled={shareLoading}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-                                fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                                style={{ marginRight: '0.5rem' }}>
-                                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
-                                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                            </svg>
-                            {shareLoading ? 'Generating…' : 'Share'}
-                        </button>
-
                         {/* Download Resume */}
                         <GenerateButton
                             onClick={() => setShowResumeBuilder(true)}
@@ -215,46 +127,7 @@ const Interview = () => {
                             loadingLabel="Building PDF…"
                         />
 
-                        {/* ── Share box (inline, below buttons) ── */}
-                        {shareOpen && shareId && (
-                            <div className="share-box">
-                                <p className="share-box__title">Share this report</p>
-
-                                <div className="share-box__url-row">
-                                    <input
-                                        className="share-box__input"
-                                        type="text"
-                                        readOnly
-                                        value={shareUrl}
-                                        onClick={e => e.target.select()}
-                                    />
-                                    <button
-                                        className={`share-box__copy${copyDone ? ' share-box__copy--done' : ''}`}
-                                        onClick={handleCopy}
-                                        disabled={!isShared}
-                                        title={!isShared ? 'Enable sharing to copy link' : ''}
-                                    >
-                                        {copyDone ? '✓' : 'Copy'}
-                                    </button>
-                                </div>
-
-                                {/* Toggle */}
-                                <label className="share-box__toggle">
-                                    <span className="share-box__toggle-label">
-                                        {isShared ? 'Public sharing on' : 'Public sharing off'}
-                                    </span>
-                                    <button
-                                        className={`share-toggle${isShared ? ' share-toggle--on' : ''}`}
-                                        onClick={handleToggle}
-                                        role="switch"
-                                        aria-checked={isShared}
-                                    >
-                                        <span className="share-toggle__thumb" />
-                                    </button>
-                                </label>
-                            </div>
-                        )}
-                    </div>
+                        </div>
                 </nav>
 
                 <div className='interview-divider' />
