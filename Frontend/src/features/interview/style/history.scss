@@ -1,0 +1,275 @@
+﻿// ── History Page ─────────────────────────────────────────────────────────────
+.history-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px 80px 24px;
+  box-sizing: border-box;
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 36px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  &__title {
+    font-size: 28px;
+    font-weight: 600;
+    color: #ffffff;
+    margin: 0;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+
+  &__subtitle {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 6px 0 0 0;
+    line-height: 1.5;
+  }
+
+  &__new-btn {
+    display: inline-flex;
+    align-items: center;
+    background: #ec4899;
+    color: #ffffff;
+    text-decoration: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background 0.15s ease;
+    flex-shrink: 0;
+
+    &:hover {
+      background: #d4357f;
+    }
+  }
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+.history-empty {
+  text-align: center;
+  padding: 80px 0;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
+
+  &__cta {
+    display: inline-block;
+    margin-top: 12px;
+    color: #ec4899;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+// ── History Grid & Cards ─────────────────────────────────────────────────────
+.history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.history-card {
+  background-color: #141414;
+  border: 1px solid #1e1e1e;
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 120px;
+  box-sizing: border-box;
+
+  &:hover {
+    border-color: #2a2a2a;
+    transform: translateY(-1px);
+  }
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .card-title-group {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    overflow: hidden;
+
+    .card-icon-box {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background-color: rgba(255, 255, 255, 0.04);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255, 255, 255, 0.5);
+      flex-shrink: 0;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: #ffffff;
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card-version-tag {
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background-color: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .card-date {
+      display: block;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.4);
+      margin-top: 3px;
+    }
+  }
+
+  .card-trash-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    transition: color 0.15s ease;
+
+    &:hover {
+      color: #ef4444;
+    }
+  }
+
+  &__bottom {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .card-match-label {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 500;
+
+      &--pending {
+        color: rgba(255, 255, 255, 0.3);
+        text-transform: none;
+        font-weight: 400;
+        letter-spacing: 0;
+        font-style: italic;
+      }
+    }
+  }
+
+  &--confirm {
+    cursor: default;
+  }
+
+  &__confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px 0;
+
+    .confirm-text {
+      font-size: 13px;
+      color: #ffffff;
+      font-weight: 500;
+    }
+
+    .confirm-buttons {
+      display: flex;
+      gap: 8px;
+
+      .confirm-btn-yes {
+        background-color: #ef4444;
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        padding: 5px 10px;
+        font-size: 12px;
+        cursor: pointer;
+
+        &:hover {
+          background-color: #dc2626;
+        }
+      }
+
+      .confirm-btn-cancel {
+        background-color: transparent;
+        color: rgba(255, 255, 255, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 4px;
+        padding: 5px 10px;
+        font-size: 12px;
+        cursor: pointer;
+
+        &:hover {
+          color: #ffffff;
+        }
+      }
+    }
+  }
+}
+
+// ── Score Ring (36x36) ────────────────────────────────────────────────────────
+.score-ring {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+
+  svg {
+    display: block;
+  }
+
+  &__label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+}
+
+// ── Mobile ────────────────────────────────────────────────────────────────────
+@media (max-width: 768px) {
+  .history-page {
+    padding: 24px 16px 60px 16px;
+
+    &__header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+}

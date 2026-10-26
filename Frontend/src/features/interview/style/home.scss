@@ -526,3 +526,17 @@
     }
   }
 }
+
+// -- History shortcut link (below the action button) -------------------------
+.history-shortcut-link {
+  display: inline-block;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+  text-decoration: none;
+  margin-top: 4px;
+  transition: color 0.15s ease;
+
+  &:hover {
+    color: #ec4899;
+  }
+}

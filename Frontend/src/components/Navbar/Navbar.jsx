@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+﻿import React, { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../../features/auth/hooks/useAuth.js'
 import { useInterview } from '../../features/interview/hooks/useInterview.js'
@@ -15,22 +15,10 @@ const Navbar = () => {
     // Current active report ID (from active report or most recent history)
     const activeReportId = report?._id || (reports && reports.length > 0 ? reports[0]._id : null)
 
-    const handleHistoryClick = (e) => {
-        e.preventDefault()
-        setMobileOpen(false)
-        if (location.pathname === '/') {
-            const el = document.getElementById('history')
-            if (el) {
-                el.scrollIntoView({ behavior: 'smooth' })
-            }
-        } else {
-            navigate('/#history')
-            setTimeout(() => {
-                const el = document.getElementById('history')
-                if (el) el.scrollIntoView({ behavior: 'smooth' })
-            }, 100)
-        }
-    }
+    // Which "zone" are we in?
+    const isHome = location.pathname === '/'
+    const isReport = location.pathname.startsWith('/interview/') || location.pathname.startsWith('/report/')
+    const isMock = location.pathname.startsWith('/mock-interview')
 
     const handleReportNav = (e, section) => {
         e.preventDefault()
@@ -50,8 +38,8 @@ const Navbar = () => {
     }
 
     const isCurrent = (path, section) => {
-        if (path === '/' && location.pathname === '/' && !location.hash) return true
-        if (path === '/history' && location.hash === '#history') return true
+        if (path === '/' && location.pathname === '/') return true
+        if (path === '/history' && location.pathname === '/history') return true
         if (path.startsWith('/interview')) {
             const search = new URLSearchParams(location.search)
             const currentSection = search.get('section') || 'technical'
@@ -61,6 +49,79 @@ const Navbar = () => {
             return true
         }
         return false
+    }
+
+    // ── Conditional nav links based on current page ──
+    const renderNavLinks = (linkClass) => {
+        if (isReport || isMock) {
+            // Report/mock interview page — show all report section links
+            return (
+                <>
+                    <Link
+                        to="/"
+                        className={`${linkClass} ${isCurrent('/') ? `${linkClass}--active` : ''}`}
+                        onClick={() => setMobileOpen(false)}
+                    >
+                        ResumeCraft
+                    </Link>
+                    <a
+                        href="#technical"
+                        onClick={(e) => handleReportNav(e, 'technical')}
+                        className={`${linkClass} ${isCurrent('/interview', 'technical') ? `${linkClass}--active` : ''}`}
+                    >
+                        Technical Q
+                    </a>
+                    <a
+                        href="#behavioral"
+                        onClick={(e) => handleReportNav(e, 'behavioral')}
+                        className={`${linkClass} ${isCurrent('/interview', 'behavioral') ? `${linkClass}--active` : ''}`}
+                    >
+                        Behavioral Q
+                    </a>
+                    <a
+                        href="#skill-gap"
+                        onClick={(e) => handleReportNav(e, 'skills')}
+                        className={`${linkClass} ${isCurrent('/interview', 'skills') ? `${linkClass}--active` : ''}`}
+                    >
+                        Skill Gap
+                    </a>
+                    <a
+                        href="#roadmap"
+                        onClick={(e) => handleReportNav(e, 'roadmap')}
+                        className={`${linkClass} ${isCurrent('/interview', 'roadmap') ? `${linkClass}--active` : ''}`}
+                    >
+                        Roadmap
+                    </a>
+                    <a
+                        href="#mock-interview"
+                        onClick={(e) => handleReportNav(e, 'mock')}
+                        className={`${linkClass} ${isCurrent('/mock') ? `${linkClass}--active` : ''}`}
+                    >
+                        Mock Interview
+                    </a>
+                </>
+            )
+        }
+
+        // Home page and all other pages — show ResumeCraft + History
+        return (
+            <>
+                <Link
+                    to="/"
+                    className={`${linkClass} ${isCurrent('/') ? `${linkClass}--active` : ''}`}
+                    onClick={() => setMobileOpen(false)}
+                >
+                    ResumeCraft
+                </Link>
+                <Link
+                    to="/history"
+                    className={`${linkClass} ${isCurrent('/history') ? `${linkClass}--active` : ''}`}
+                    onClick={() => setMobileOpen(false)}
+                >
+                    History
+                </Link>
+            </>
+        )
     }
 
     return (
@@ -77,54 +138,7 @@ const Navbar = () => {
                 {/* ── Center: Navigation Links (only when logged in) ── */}
                 {user && (
                     <nav className="navbar-center" aria-label="Main navigation">
-                        <Link
-                            to="/"
-                            className={`nav-link ${isCurrent('/', '') ? 'nav-link--active' : ''}`}
-                        >
-                            Resume
-                        </Link>
-                        <a
-                            href="#history"
-                            onClick={handleHistoryClick}
-                            className={`nav-link ${isCurrent('/history') ? 'nav-link--active' : ''}`}
-                        >
-                            History
-                        </a>
-                        <a
-                            href="#technical"
-                            onClick={(e) => handleReportNav(e, 'technical')}
-                            className={`nav-link ${isCurrent('/interview', 'technical') ? 'nav-link--active' : ''}`}
-                        >
-                            Technical Q
-                        </a>
-                        <a
-                            href="#behavioral"
-                            onClick={(e) => handleReportNav(e, 'behavioral')}
-                            className={`nav-link ${isCurrent('/interview', 'behavioral') ? 'nav-link--active' : ''}`}
-                        >
-                            Behavioral Q
-                        </a>
-                        <a
-                            href="#mock-interview"
-                            onClick={(e) => handleReportNav(e, 'mock')}
-                            className={`nav-link ${isCurrent('/mock') ? 'nav-link--active' : ''}`}
-                        >
-                            Mock Interview
-                        </a>
-                        <a
-                            href="#skill-gap"
-                            onClick={(e) => handleReportNav(e, 'skills')}
-                            className={`nav-link ${isCurrent('/interview', 'skills') ? 'nav-link--active' : ''}`}
-                        >
-                            Skill Gap
-                        </a>
-                        <a
-                            href="#roadmap"
-                            onClick={(e) => handleReportNav(e, 'roadmap')}
-                            className={`nav-link ${isCurrent('/interview', 'roadmap') ? 'nav-link--active' : ''}`}
-                        >
-                            Roadmap
-                        </a>
+                        {renderNavLinks('nav-link')}
                     </nav>
                 )}
 
@@ -170,55 +184,7 @@ const Navbar = () => {
             {/* ── Mobile dropdown menu ── */}
             {user && mobileOpen && (
                 <div className="navbar-mobile-menu">
-                    <Link
-                        to="/"
-                        className={`mobile-nav-link ${isCurrent('/', '') ? 'mobile-nav-link--active' : ''}`}
-                        onClick={() => setMobileOpen(false)}
-                    >
-                        Resume
-                    </Link>
-                    <a
-                        href="#history"
-                        onClick={handleHistoryClick}
-                        className={`mobile-nav-link ${isCurrent('/history') ? 'mobile-nav-link--active' : ''}`}
-                    >
-                        History
-                    </a>
-                    <a
-                        href="#technical"
-                        onClick={(e) => handleReportNav(e, 'technical')}
-                        className={`mobile-nav-link ${isCurrent('/interview', 'technical') ? 'mobile-nav-link--active' : ''}`}
-                    >
-                        Technical Q
-                    </a>
-                    <a
-                        href="#behavioral"
-                        onClick={(e) => handleReportNav(e, 'behavioral')}
-                        className={`mobile-nav-link ${isCurrent('/interview', 'behavioral') ? 'mobile-nav-link--active' : ''}`}
-                    >
-                        Behavioral Q
-                    </a>
-                    <a
-                        href="#mock-interview"
-                        onClick={(e) => handleReportNav(e, 'mock')}
-                        className={`mobile-nav-link ${isCurrent('/mock') ? 'mobile-nav-link--active' : ''}`}
-                    >
-                        Mock Interview
-                    </a>
-                    <a
-                        href="#skill-gap"
-                        onClick={(e) => handleReportNav(e, 'skills')}
-                        className={`mobile-nav-link ${isCurrent('/interview', 'skills') ? 'mobile-nav-link--active' : ''}`}
-                    >
-                        Skill Gap
-                    </a>
-                    <a
-                        href="#roadmap"
-                        onClick={(e) => handleReportNav(e, 'roadmap')}
-                        className={`mobile-nav-link ${isCurrent('/interview', 'roadmap') ? 'mobile-nav-link--active' : ''}`}
-                    >
-                        Roadmap
-                    </a>
+                    {renderNavLinks('mobile-nav-link')}
 
                     <div className="mobile-user-row">
                         <span className="mobile-greeting">Hello, {user.username}</span>
