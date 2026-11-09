@@ -477,7 +477,7 @@ export default function OptimizeFlow({ formData, onCancel }) {
                             <div className="of-step1__loading-block">
                                 <AnalyzeStatus statuses={ANALYZE_STATUSES} currentIdx={analyzeIdx} />
                                 <div className="of-step1__skeletons">
-                                    {[0, 1, 2, 3].map(i => <SkeletonCard key={i} />)}
+                                    {[0, 1].map(i => <SkeletonCard key={i} />)}
                                 </div>
                             </div>
                         )}
@@ -678,3 +678,4 @@ export default function OptimizeFlow({ formData, onCancel }) {
         </div>
     )
 }
+

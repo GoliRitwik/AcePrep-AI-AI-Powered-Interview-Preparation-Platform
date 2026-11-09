@@ -24,6 +24,11 @@ $text-muted:      rgba(255,255,255,0.4);
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    &::-webkit-scrollbar {
+        display: none;
+    }
 }
 
 .of-header {
@@ -56,12 +61,19 @@ $text-muted:      rgba(255,255,255,0.4);
 .of-body {
     flex: 1;
     overflow-y: auto;
-    padding: 32px 24px;
+    padding: 24px;
     max-width: 720px;
     width: 100%;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
+
+    /* Hide scrollbar completely to eliminate the white sliding bar */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    &::-webkit-scrollbar {
+        display: none;
+    }
 }
 
 // ─────────────────────────────────────────────────────────────

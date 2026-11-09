@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import '../style/home.scss'
 import { Link } from 'react-router'
 import toast from 'react-hot-toast'

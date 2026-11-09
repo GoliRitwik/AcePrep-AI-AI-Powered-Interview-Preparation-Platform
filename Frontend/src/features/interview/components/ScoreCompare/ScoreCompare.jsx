@@ -131,3 +131,4 @@ export default function ScoreCompare({ before, after, size = 'md' }) {
         </div>
     )
 }
+
