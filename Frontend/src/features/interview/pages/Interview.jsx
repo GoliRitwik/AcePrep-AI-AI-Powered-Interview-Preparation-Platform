@@ -6,6 +6,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router'
 import toast from 'react-hot-toast'
 import ResumeBuilderModal from '../components/ResumeBuilderModal/ResumeBuilderModal.jsx'
 import { downloadTailoredResumePdf } from '../services/interview.api.js'
+import ScoreCompare from '../components/ScoreCompare/ScoreCompare.jsx'
 
 // ─────────────────────────────────────────────────────────────
 // LOADING SCREEN
@@ -90,6 +91,17 @@ const LoadingScreen = () => {
 // ─────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────
+
+function relativeTime(dateStr) {
+    if (!dateStr) return ''
+    const diff = Date.now() - new Date(dateStr).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'just now'
+    if (mins < 60) return `${mins} min ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs} h ago`
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
 
 const scoreColorHex = (score) => {
     if (score >= 80) return '#22c55e'
@@ -309,47 +321,15 @@ const ResumeTab = ({ report, tailored, onOpenBuilder, user }) => {
                 {/* RIGHT: ATS sidebar */}
                 <aside className="tab-resume__right">
                     <div className="ats-sidebar-card">
-                        <p className="ats-sidebar-card__label">ESTIMATED ATS MATCH</p>
-
                         {hasTailoredScore ? (
-                            <>
-                                <div className="ats-before-after">
-                                    <div className="ats-before-after__orig">
-                                        <span className="ats-before-after__sub">Original resume</span>
-                                        <span className="ats-before-after__num" style={{ color: scoreColorHex(tailored.atsBefore) }}>
-                                            {tailored.atsBefore}%
-                                        </span>
-                                    </div>
-                                    <span className="ats-before-after__arrow">→</span>
-                                    <div className="ats-before-after__tail">
-                                        <span className="ats-before-after__sub">Tailored resume</span>
-                                        <span className="ats-before-after__num ats-before-after__num--large" style={{ color: afterColor }}>
-                                            {tailored.atsAfter}%
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="ats-delta-chip" style={{
-                                    background: diff >= 0 ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-                                    color: diff >= 0 ? '#22c55e' : '#ef4444',
-                                    borderColor: diff >= 0 ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'
-                                }}>
-                                    {diff >= 0 ? `+${diff}` : diff} points
-                                </div>
-
-                                <AtsBar before={tailored.atsBefore} after={tailored.atsAfter} />
-
-                                <p className="ats-sidebar-card__rubric">
-                                    Both resumes are scored against this job description with the same rubric.
-                                </p>
-
-                                <div className="ats-sidebar-card__divider" />
-                                <p className="ats-sidebar-card__label-score" style={{ color: lbl.color }}>
-                                    {lbl.text}
-                                </p>
-                            </>
+                            <ScoreCompare
+                                size="md"
+                                before={tailored.atsBefore}
+                                after={tailored.atsAfter}
+                            />
                         ) : (
                             <>
+                                <p className="ats-sidebar-card__label">ESTIMATED ATS MATCH</p>
                                 <div className="ats-sidebar-card__ring-wrap">
                                     <ScoreRing score={report.matchScore} size={96} />
                                 </div>
@@ -460,23 +440,11 @@ const AtsTab = ({ report, tailored, onOpenBuilder }) => {
 
             {hasTailored ? (
                 <>
-                    <div className="ats-compare-row">
-                        <div className="ats-compare-block">
-                            <span className="ats-compare-block__label">Original</span>
-                            <span className="ats-compare-block__num" style={{ color: scoreColorHex(tailored.atsBefore) }}>
-                                {tailored.atsBefore}%
-                            </span>
-                        </div>
-                        <span className="ats-compare-arrow">→</span>
-                        <div className="ats-compare-block">
-                            <span className="ats-compare-block__label">Tailored</span>
-                            <span className="ats-compare-block__num ats-compare-block__num--large" style={{ color }}>
-                                {tailored.atsAfter}%
-                            </span>
-                        </div>
-                    </div>
-
-                    <AtsBar before={tailored.atsBefore} after={tailored.atsAfter} />
+                    <ScoreCompare
+                        size="lg"
+                        before={tailored.atsBefore}
+                        after={tailored.atsAfter}
+                    />
                 </>
             ) : (
                 <div className="ats-score-hero">
@@ -664,16 +632,63 @@ const Interview = () => {
 
     return (
         <div className="interview-page">
+            {/* ── Score headline header ── */}
+            <div className="report-headline">
+                <div className="report-headline__left">
+                    {tailored?.atsBefore != null && tailored?.atsAfter != null ? (
+                        <>
+                            {(() => {
+                                const delta = tailored.atsAfter - tailored.atsBefore
+                                const chipStyle = delta > 0
+                                    ? { bg: 'rgba(34,197,94,0.1)', color: '#22c55e', border: 'rgba(34,197,94,0.25)' }
+                                    : delta < 0
+                                        ? { bg: 'rgba(239,68,68,0.1)', color: '#ef4444', border: 'rgba(239,68,68,0.25)' }
+                                        : { bg: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: 'rgba(255,255,255,0.1)' }
+                                const headline = delta > 0
+                                    ? `Score improved ${tailored.atsBefore}% → ${tailored.atsAfter}%`
+                                    : delta === 0
+                                        ? `Score unchanged at ${tailored.atsAfter}%`
+                                        : `Score went from ${tailored.atsBefore}% to ${tailored.atsAfter}%`
+                                const chipLabel = delta > 0 ? `+${delta} points` : delta < 0 ? `${delta} points` : 'No change'
+                                return (
+                                    <>
+                                        <div className="report-headline__title-row">
+                                            <h1 className="report-headline__h1">{headline}</h1>
+                                            <span
+                                                className="report-headline__chip"
+                                                style={{ background: chipStyle.bg, color: chipStyle.color, borderColor: chipStyle.border }}
+                                            >
+                                                {chipLabel}
+                                            </span>
+                                        </div>
+                                        <p className="report-headline__sub">
+                                            {report.title}
+                                            {tailored.generatedAt && (
+                                                <> · optimized {relativeTime(tailored.generatedAt)}</>
+                                            )}
+                                        </p>
+                                    </>
+                                )
+                            })()}
+                        </>
+                    ) : (
+                        <>
+                            <h1 className="report-headline__h1 report-headline__h1--plain">{report.title || 'Interview Report'}</h1>
+                            <p className="report-headline__sub">
+                                {new Date(report.createdAt || Date.now()).toLocaleDateString('en-US', {
+                                    year: 'numeric', month: 'short', day: 'numeric'
+                                })}
+                            </p>
+                        </>
+                    )}
+                </div>
+                <button className="report-headline__start-over" onClick={() => navigate('/')}>
+                    Start over
+                </button>
+            </div>
+
             {/* Sticky top bar */}
             <div className="report-topbar">
-                <div className="report-topbar__left">
-                    <span className="report-topbar__title">{report.title || 'Interview Report'}</span>
-                    <span className="report-topbar__date">
-                        {new Date(report.createdAt || Date.now()).toLocaleDateString('en-US', {
-                            year: 'numeric', month: 'short', day: 'numeric'
-                        })}
-                    </span>
-                </div>
                 <div className="report-topbar__right">
                     {TABS.map(tab => (
                         <button

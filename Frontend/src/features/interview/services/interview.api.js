@@ -1,9 +1,9 @@
 import axios from "axios";
 
-// Authenticated API — sends cookies automatically
 const API_BASE_URL =
-    import.meta.env.VITE_API_URL || "https://aceprep-backend-elm2.onrender.com"
+    import.meta.env.VITE_API_URL || "http://localhost:3000"
 
+// Authenticated API — sends cookies automatically
 const api = axios.create({
     baseURL: API_BASE_URL,
     withCredentials: true,
