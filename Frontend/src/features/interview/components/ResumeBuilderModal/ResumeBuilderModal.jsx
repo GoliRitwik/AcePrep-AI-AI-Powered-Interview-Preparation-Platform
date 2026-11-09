@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
-import { getResumeOptions, generateResumePdf } from '../../services/interview.api.js'
+import { getResumeOptions, generateTailoredResume } from '../../services/interview.api.js'
 import './ResumeBuilderModal.scss'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ const GEN_STEPS = [
     'Processing your selections',
     'Tailoring skill descriptions',
     'Crafting your resume…',
-    'Finalizing PDF',
+    'Scoring ATS match…',
 ]
 
 function GeneratingView({ done }) {
@@ -115,8 +115,8 @@ function GeneratingView({ done }) {
         return (
             <div className="rb-generating__success">
                 <div className="rb-success-icon">✅</div>
-                <h3>Resume downloaded!</h3>
-                <p>Your tailored resume has been saved to your downloads folder.</p>
+                <h3>Resume ready!</h3>
+                <p>Your tailored resume has been generated and saved.</p>
             </div>
         )
     }
@@ -147,7 +147,7 @@ function GeneratingView({ done }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function ResumeBuilderModal({ report, onClose, onDownloadComplete }) {
+export default function ResumeBuilderModal({ report, onClose, onResumeReady, onDownloadComplete }) {
     const [step, setStep] = useState(1)
 
     // ── Step 1 state ──────────────────────────────────────────────────────────
@@ -267,34 +267,31 @@ export default function ResumeBuilderModal({ report, onClose, onDownloadComplete
         return noEvidenceOverride[s.skill] !== false
     })
 
-    const handleGeneratePdf = async () => {
+    const handleGenerate = async () => {
         if (!chosenSummaryText) return
         setStep(3)
         setPdfLoading(true)
         try {
-            const blob = await generateResumePdf({
-                interviewReportId:            report._id,
-                confirmedSkills:              selectedSkills,
-                chosenSummary:                chosenSummaryText,
-                skillsWithEvidence:           finalSkillsWithEvidence,
-                irrelevantSkillsToDeprioritize: deprioritize
+            const summaryLabel = chosenSummary === 'A'
+                ? (options?.summaryA?.label || 'Technical depth focus')
+                : (options?.summaryB?.label || 'Role fit focus')
+
+            const data = await generateTailoredResume({
+                reportId: report._id,
+                confirmedSkills: selectedSkills,
+                chosenSummary: chosenSummaryText,
+                skillsWithEvidence: finalSkillsWithEvidence,
+                irrelevantSkillsToDeprioritize: deprioritize,
+                summaryLabel
             })
-            // Trigger browser download
-            const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
-            const a   = document.createElement('a')
-            a.href     = url
-            a.download = `resume_${report._id}.pdf`
-            document.body.appendChild(a)
-            a.click()
-            a.remove()
-            URL.revokeObjectURL(url)
+
             setGenDone(true)
             setTimeout(() => {
-                onDownloadComplete?.()
-            }, 1800)
+                onResumeReady?.(data.tailoredResume)
+            }, 1200)
         } catch (err) {
-            console.error('PDF generation error:', err)
-            toast.error('PDF generation failed — please try again.')
+            console.error('Resume generation error:', err)
+            toast.error('Resume generation failed — please try again.')
             setPdfLoading(false)
             setStep(2)   // back to step 2 with selections preserved
         }
@@ -563,12 +560,12 @@ export default function ResumeBuilderModal({ report, onClose, onDownloadComplete
                             </button>
                             <button
                                 className={`resume-builder-modal__btn resume-builder-modal__btn--primary ${pdfLoading ? 'resume-builder-modal__btn--loading' : ''}`}
-                                onClick={handleGeneratePdf}
+                                onClick={handleGenerate}
                                 disabled={!chosenSummary || pdfLoading}
                             >
                                 {pdfLoading
                                     ? <><span className="rb-spinner" /> Building your resume…</>
-                                    : 'Generate Resume PDF →'
+                                    : 'Generate Tailored Resume →'
                                 }
                             </button>
                         </div>

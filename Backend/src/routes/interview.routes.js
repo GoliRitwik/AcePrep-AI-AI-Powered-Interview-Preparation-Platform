@@ -47,6 +47,21 @@ interviewRouter.post("/resume/pdf/:interviewReportId", authMiddleware.authUser, 
 
 
 /**
+ * @route POST /api/interview/resume/generate/:reportId
+ * @description Generate tailored resume HTML + ATS scoring. No PDF.
+ * @access private
+ */
+interviewRouter.post("/resume/generate/:reportId", authMiddleware.authUser, interviewController.generateTailoredResumeController)
+
+/**
+ * @route GET /api/interview/resume/pdf/:reportId
+ * @description Download the saved tailored resume as PDF. No AI call.
+ * @access private
+ */
+interviewRouter.get("/resume/pdf/:reportId", authMiddleware.authUser, interviewController.downloadTailoredResumePdfController)
+
+
+/**
  * @route GET /api/interview/share/:shareId   ← PUBLIC, no auth
  * @description Get a publicly shared report (safe fields only). Must be defined
  *              before /:id routes to prevent "share" being matched as an id.

@@ -114,7 +114,23 @@ const interviewReportSchema = new mongoose.Schema({
     isShared: {
         type: Boolean,
         default: false
-    }
+    },
+    tailoredResume: {
+        html: { type: String, default: null },
+        generatedAt: { type: Date, default: null },
+        atsBefore: { type: Number, default: null },
+        atsAfter: { type: Number, default: null },
+        matchedBefore: [{ type: String }],
+        matchedAfter: [{ type: String }],
+        missingAfter: [{ type: String }],
+        keywordsGained: [{ type: String }],
+        changes: {
+            skillsAdded: [{ type: String }],
+            skillsDeprioritized: [{ type: String }],
+            summaryAngle: { type: String, default: null },
+            summaryText: { type: String, default: null }
+        }
+    },
 }, {
     timestamps: true
 })

@@ -1,5 +1,5 @@
 const pdfParse = require("pdf-parse")
-const { generateInterviewReport, generateResumePdf, generateSummaryOptions } = require("../services/ai.service")
+const { generateInterviewReport, generateResumePdf, generatePdfFromHtml, generateTailoredResume, scoreResumeComparison, resumeContentToText, generateSummaryOptions } = require("../services/ai.service")
 const interviewReportModel = require("../models/interviewReport.model")
 const { nanoid } = require("nanoid")
 
@@ -262,6 +262,107 @@ async function getSharedReportController(req, res) {
 }
 
 
+/**
+ * POST /api/interview/resume/generate/:reportId
+ * Generates the tailored resume HTML + scores it, saves to report.tailoredResume.
+ */
+async function generateTailoredResumeController(req, res) {
+    try {
+        const report = await interviewReportModel.findById(req.params.reportId)
+        if (!report) return res.status(404).json({ success: false, message: 'Report not found.' })
+        if (report.user.toString() !== req.user.id.toString())
+            return res.status(403).json({ success: false, message: 'Not authorised.' })
+
+        const {
+            confirmedSkills = [],
+            chosenSummary = null,
+            skillsWithEvidence = [],
+            irrelevantSkillsToDeprioritize = [],
+            summaryLabel = ''
+        } = req.body || {}
+
+        // 1. Generate HTML (no PDF)
+        const { content, html } = await generateTailoredResume({
+            resume: report.resume,
+            selfDescription: report.selfDescription,
+            jobDescription: report.jobDescription,
+            confirmedSkills,
+            chosenSummary,
+            skillsWithEvidence,
+            irrelevantSkillsToDeprioritize
+        })
+
+        // 2. Score comparison — wrap in try/catch so a scoring failure never blocks the resume
+        let scoreData = {}
+        let scoreAvailable = false
+        try {
+            const tailoredText = resumeContentToText(content)
+            const scores = await scoreResumeComparison({
+                originalResume: report.resume,
+                tailoredText,
+                jobDescription: report.jobDescription
+            })
+            scoreData = scores
+            scoreAvailable = true
+        } catch (scoreErr) {
+            console.error('scoreResumeComparison failed (non-blocking):', scoreErr.message)
+        }
+
+        // 3. Save to report
+        report.tailoredResume = {
+            html,
+            generatedAt: new Date(),
+            atsBefore: scoreData.atsBefore ?? null,
+            atsAfter: scoreData.atsAfter ?? null,
+            matchedBefore: scoreData.matchedBefore || [],
+            matchedAfter: scoreData.matchedAfter || [],
+            missingAfter: scoreData.missingAfter || [],
+            keywordsGained: scoreData.keywordsGained || [],
+            changes: {
+                skillsAdded: confirmedSkills,
+                skillsDeprioritized: irrelevantSkillsToDeprioritize,
+                summaryAngle: summaryLabel,
+                summaryText: chosenSummary
+            }
+        }
+        await report.save()
+
+        return res.json({ success: true, tailoredResume: report.tailoredResume, scoreAvailable })
+    } catch (err) {
+        console.error('generateTailoredResumeController error:', err)
+        return res.status(500).json({ success: false, message: err.message })
+    }
+}
+
+
+/**
+ * GET /api/interview/resume/pdf/:reportId
+ * Renders the saved tailoredResume.html as a PDF and streams it.
+ * Does NOT trigger any AI call.
+ */
+async function downloadTailoredResumePdfController(req, res) {
+    try {
+        const report = await interviewReportModel.findById(req.params.reportId)
+        if (!report) return res.status(404).json({ success: false, message: 'Report not found.' })
+        if (report.user.toString() !== req.user.id.toString())
+            return res.status(403).json({ success: false, message: 'Not authorised.' })
+        if (!report.tailoredResume || !report.tailoredResume.html)
+            return res.status(404).json({ success: false, message: 'No tailored resume found. Build one first.' })
+
+        const pdfBuffer = await generatePdfFromHtml(report.tailoredResume.html)
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="resume.pdf"`
+        })
+        return res.send(pdfBuffer)
+    } catch (err) {
+        console.error('downloadTailoredResumePdfController error:', err)
+        return res.status(500).json({ success: false, message: err.message })
+    }
+}
+
+
 module.exports = {
     generateInterViewReportController,
     getInterviewReportByIdController,
@@ -271,5 +372,7 @@ module.exports = {
     deletePlanController,
     shareReportController,
     toggleShareController,
-    getSharedReportController
+    getSharedReportController,
+    generateTailoredResumeController,
+    downloadTailoredResumePdfController
 }

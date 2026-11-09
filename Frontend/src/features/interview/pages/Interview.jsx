@@ -1,9 +1,11 @@
-﻿import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import '../style/interview.scss'
 import { useInterview } from '../hooks/useInterview.js'
-import { useNavigate, useParams } from 'react-router'
+import { useAuth } from '../../auth/hooks/useAuth.js'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 import toast from 'react-hot-toast'
 import ResumeBuilderModal from '../components/ResumeBuilderModal/ResumeBuilderModal.jsx'
+import { downloadTailoredResumePdf } from '../services/interview.api.js'
 
 // ─────────────────────────────────────────────────────────────
 // LOADING SCREEN
@@ -57,48 +59,25 @@ const LoadingScreen = () => {
 
     return (
         <div className="report-loading-screen">
-            {/* Spinning dot loader */}
             <div className="loading-loader-wrap">
                 <div className="pl">
-                    <div className="pl__dot"></div>
-                    <div className="pl__dot"></div>
-                    <div className="pl__dot"></div>
-                    <div className="pl__dot"></div>
-                    <div className="pl__dot"></div>
-                    <div className="pl__dot"></div>
-                    <div className="pl__dot"></div>
-                    <div className="pl__dot"></div>
-                    <div className="pl__dot"></div>
-                    <div className="pl__dot"></div>
-                    <div className="pl__dot"></div>
-                    <div className="pl__dot"></div>
+                    {Array.from({ length: 12 }).map((_, i) => <div key={i} className="pl__dot" />)}
                     <div className="pl__text">AI</div>
                 </div>
             </div>
-
-            {/* Step list */}
             <div className="loading-steps">
                 {STEPS.slice(0, currentStep + 1).map((label, i) => {
                     const isDone = i < currentStep
                     const isActive = i === currentStep
                     return (
-                        <div
-                            key={i}
-                            className={`loading-step ${isDone ? 'loading-step--done' : isActive ? 'loading-step--active' : ''}`}
-                        >
-                            {isDone ? (
-                                <span className="loading-step__check">✓</span>
-                            ) : (
-                                <span className="loading-step__dot" />
-                            )}
+                        <div key={i} className={`loading-step ${isDone ? 'loading-step--done' : isActive ? 'loading-step--active' : ''}`}>
+                            {isDone ? <span className="loading-step__check">✓</span> : <span className="loading-step__dot" />}
                             <span className="loading-step__label">{label}</span>
                             {isActive && <span className="loading-step__running">running</span>}
                         </div>
                     )
                 })}
             </div>
-
-            {/* Rotating tip */}
             <div className="loading-tip">
                 <p style={{ opacity: tipVisible ? 1 : 0, transition: 'opacity 0.4s ease' }}>
                     💡 {TIPS[tipIndex]}
@@ -109,7 +88,7 @@ const LoadingScreen = () => {
 }
 
 // ─────────────────────────────────────────────────────────────
-// SCORE RING
+// HELPERS
 // ─────────────────────────────────────────────────────────────
 
 const scoreColorHex = (score) => {
@@ -118,28 +97,29 @@ const scoreColorHex = (score) => {
     return '#ef4444'
 }
 
+const scoreLabel = (s) => {
+    if (s >= 85) return { text: 'Strong Match', color: '#22c55e' }
+    if (s >= 70) return { text: 'Good Match', color: '#86efac' }
+    if (s >= 55) return { text: 'Moderate Match', color: '#f59e0b' }
+    return { text: 'Needs Work', color: '#ef4444' }
+}
+
+// ─────────────────────────────────────────────────────────────
+// SCORE RING
+// ─────────────────────────────────────────────────────────────
+
 const ScoreRing = ({ score, size = 96 }) => {
     const r = (size / 2) - 6
     const circ = 2 * Math.PI * r
     const dash = (score / 100) * circ
     const color = scoreColorHex(score)
-
     return (
         <div className="score-ring-wrap" style={{ width: size, height: size }}>
             <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-                <circle
-                    cx={size / 2} cy={size / 2} r={r}
-                    fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5"
-                />
-                <circle
-                    cx={size / 2} cy={size / 2} r={r}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth="5"
-                    strokeDasharray={`${dash} ${circ}`}
-                    strokeLinecap="round"
-                    transform={`rotate(-90 ${size / 2} ${size / 2})`}
-                />
+                <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" />
+                <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="5"
+                    strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+                    transform={`rotate(-90 ${size / 2} ${size / 2})`} />
             </svg>
             <div className="score-ring-wrap__label" style={{ color }}>
                 <span className="score-ring-wrap__num">{score}</span>
@@ -181,129 +161,206 @@ const QuestionCard = ({ item, index }) => {
 }
 
 // ─────────────────────────────────────────────────────────────
-// TABS
+// ATS BAR (before/after)
 // ─────────────────────────────────────────────────────────────
 
-const TAB_RESUME = 'resume'
-const TAB_CHANGES = 'changes'
-const TAB_ATS = 'ats'
-const TAB_ROADMAP = 'roadmap'
-
-const TABS = [
-    { id: TAB_RESUME, label: 'Resume' },
-    { id: TAB_CHANGES, label: 'What Changed' },
-    { id: TAB_ATS, label: 'ATS Score' },
-    { id: TAB_ROADMAP, label: 'Skill Roadmap' }
-]
+const AtsBar = ({ before, after }) => {
+    const colorAfter = scoreColorHex(after)
+    return (
+        <div className="ats-bar-wrap">
+            <div className="ats-bar-track">
+                <div className="ats-bar-fill" style={{ width: `${after}%`, backgroundColor: colorAfter }} />
+                {/* before marker */}
+                <div className="ats-bar-marker ats-bar-marker--before" style={{ left: `${before}%` }}>
+                    <span className="ats-bar-marker__label">{before}%</span>
+                </div>
+                {/* after marker */}
+                <div className="ats-bar-marker ats-bar-marker--after" style={{ left: `${after}%` }}>
+                    <span className="ats-bar-marker__label">{after}%</span>
+                </div>
+            </div>
+            <div className="ats-bar-labels">
+                <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+            </div>
+        </div>
+    )
+}
 
 // ─────────────────────────────────────────────────────────────
-// TAB 1 — Resume
+// EMPTY STATE
 // ─────────────────────────────────────────────────────────────
 
-const ResumeTab = ({ report, onOpenBuilder }) => {
-    const scoreColor = scoreColorHex(report.matchScore)
+const EmptyResumeState = ({ onBuild }) => (
+    <div className="resume-empty-state">
+        <div className="resume-empty-state__icon">📄</div>
+        <p className="resume-empty-state__text">Your tailored resume will appear here</p>
+        <button className="dl-btn dl-btn--primary" onClick={onBuild}>
+            Build tailored resume
+        </button>
+    </div>
+)
 
-    const scoreLabel = () => {
-        const s = report.matchScore
-        if (s >= 85) return { text: 'Strong Match', color: '#22c55e' }
-        if (s >= 70) return { text: 'Good Match', color: '#86efac' }
-        if (s >= 55) return { text: 'Moderate Match', color: '#f59e0b' }
-        return { text: 'Needs Work', color: '#ef4444' }
+// ─────────────────────────────────────────────────────────────
+// TAB: RESUME
+// ─────────────────────────────────────────────────────────────
+
+const ResumeTab = ({ report, tailored, onOpenBuilder, user }) => {
+    const panelRef = useRef(null)
+    const [scale, setScale] = useState(1)
+    const [pdfLoading, setPdfLoading] = useState(false)
+
+    const updateScale = useCallback(() => {
+        if (panelRef.current) {
+            const w = panelRef.current.clientWidth
+            setScale(w / 794)
+        }
+    }, [])
+
+    useEffect(() => {
+        updateScale()
+        const ro = new ResizeObserver(updateScale)
+        if (panelRef.current) ro.observe(panelRef.current)
+        return () => ro.disconnect()
+    }, [updateScale])
+
+    const handleDownloadPdf = async () => {
+        setPdfLoading(true)
+        try {
+            const blob = await downloadTailoredResumePdf(report._id)
+            const nameCandidate = (user?.username || report.title || 'resume').replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase()
+            const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `${nameCandidate}-resume.pdf`
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+            URL.revokeObjectURL(url)
+        } catch (err) {
+            toast.error('PDF download failed — please try again.')
+        } finally {
+            setPdfLoading(false)
+        }
     }
-    const label = scoreLabel()
 
-    const totalQs = (report.technicalQuestions?.length || 0) + (report.behavioralQuestions?.length || 0)
-    const gapCount = report.skillGaps?.length || 0
-    const gapColor = gapCount >= 3 ? '#ef4444' : gapCount >= 1 ? '#f59e0b' : '#22c55e'
-    const planDays = report.preparationPlan?.length || 0
+    // ATS sidebar data
+    const hasTailoredScore = tailored && tailored.atsAfter != null
+    const diff = hasTailoredScore ? tailored.atsAfter - (tailored.atsBefore ?? 0) : 0
+    const afterColor = hasTailoredScore ? scoreColorHex(tailored.atsAfter) : '#fff'
+    const lbl = hasTailoredScore ? scoreLabel(tailored.atsAfter) : null
 
     return (
         <div className="tab-content tab-resume">
             <div className="tab-resume__grid">
-                {/* ── Left 65% ── */}
+                {/* LEFT: preview panel */}
                 <div className="tab-resume__left">
                     <div className="tab-resume__header-row">
-                        <h2 className="tab-resume__heading">Your Tailored Resume</h2>
+                        <span className="tab-resume__preview-label">Preview</span>
                         <div className="tab-resume__dl-row">
-                            <button
-                                className="dl-btn dl-btn--primary"
-                                onClick={onOpenBuilder}
-                            >
-                                ↓ Download PDF
-                            </button>
-                            <button
-                                className="dl-btn dl-btn--ghost"
-                                onClick={() => toast('Word download coming soon', { icon: '📄' })}
-                            >
-                                ↓ Download Word
-                            </button>
+                            {tailored?.html && (
+                                <>
+                                    <button
+                                        className="dl-btn dl-btn--primary"
+                                        onClick={handleDownloadPdf}
+                                        disabled={pdfLoading}
+                                    >
+                                        {pdfLoading ? 'Generating…' : '↓ Download PDF'}
+                                    </button>
+                                    <button
+                                        className="dl-btn dl-btn--ghost"
+                                        onClick={() => toast('Word download coming soon', { icon: '📄' })}
+                                    >
+                                        ↓ Download Word
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
 
-                    <div className="resume-summary-card">
-                        <h3 className="resume-summary-card__name">{report.title || 'Your Resume'}</h3>
-                        <p className="resume-summary-card__for">Tailored for: {report.title}</p>
-
-                        <div className="resume-summary-card__divider" />
-
-                        <div className="resume-summary-card__chips">
-                            <span className="chip">📄 1 Page</span>
-                            <span className="chip">✓ ATS Safe</span>
-                            <span className="chip">✓ Keywords Matched</span>
-                        </div>
-
-                        <div className="resume-summary-card__divider" />
-
-                        {report.matchSummary && (
-                            <p className="resume-summary-card__summary">{report.matchSummary}</p>
-                        )}
-
-                        <div className="resume-summary-card__cta">
-                            <button className="dl-btn dl-btn--primary dl-btn--sm" onClick={onOpenBuilder}>
-                                ↓ Download PDF
+                    {tailored?.html ? (
+                        <>
+                            <div className="resume-preview-scroll">
+                                <div className="resume-paper-wrap" ref={panelRef}>
+                                    <div style={{ width: 794, height: 1123, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                                        <iframe
+                                            srcDoc={tailored.html}
+                                            sandbox=""
+                                            title="Resume preview"
+                                            style={{
+                                                width: 794,
+                                                height: 1123,
+                                                border: '1px solid var(--border, #1e1e1e)',
+                                                background: '#fff',
+                                                display: 'block'
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <button className="dl-btn dl-btn--ghost dl-btn--rebuild" onClick={onOpenBuilder}>
+                                ↺ Rebuild with different skills
                             </button>
-                            <button
-                                className="dl-btn dl-btn--ghost dl-btn--sm"
-                                onClick={() => toast('Word download coming soon', { icon: '📄' })}
-                            >
-                                ↓ Download Word
-                            </button>
-                        </div>
-                    </div>
+                        </>
+                    ) : (
+                        <EmptyResumeState onBuild={onOpenBuilder} />
+                    )}
                 </div>
 
-                {/* ── Right 35%: ATS Sidebar ── */}
+                {/* RIGHT: ATS sidebar */}
                 <aside className="tab-resume__right">
                     <div className="ats-sidebar-card">
-                        <p className="ats-sidebar-card__label">ATS MATCH SCORE</p>
-                        <div className="ats-sidebar-card__ring-wrap">
-                            <ScoreRing score={report.matchScore} size={96} />
-                        </div>
-                        {report.matchSummary && (
-                            <p className="ats-sidebar-card__summary">{report.matchSummary}</p>
+                        <p className="ats-sidebar-card__label">ESTIMATED ATS MATCH</p>
+
+                        {hasTailoredScore ? (
+                            <>
+                                <div className="ats-before-after">
+                                    <div className="ats-before-after__orig">
+                                        <span className="ats-before-after__sub">Original resume</span>
+                                        <span className="ats-before-after__num" style={{ color: scoreColorHex(tailored.atsBefore) }}>
+                                            {tailored.atsBefore}%
+                                        </span>
+                                    </div>
+                                    <span className="ats-before-after__arrow">→</span>
+                                    <div className="ats-before-after__tail">
+                                        <span className="ats-before-after__sub">Tailored resume</span>
+                                        <span className="ats-before-after__num ats-before-after__num--large" style={{ color: afterColor }}>
+                                            {tailored.atsAfter}%
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="ats-delta-chip" style={{
+                                    background: diff >= 0 ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                                    color: diff >= 0 ? '#22c55e' : '#ef4444',
+                                    borderColor: diff >= 0 ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'
+                                }}>
+                                    {diff >= 0 ? `+${diff}` : diff} points
+                                </div>
+
+                                <AtsBar before={tailored.atsBefore} after={tailored.atsAfter} />
+
+                                <p className="ats-sidebar-card__rubric">
+                                    Both resumes are scored against this job description with the same rubric.
+                                </p>
+
+                                <div className="ats-sidebar-card__divider" />
+                                <p className="ats-sidebar-card__label-score" style={{ color: lbl.color }}>
+                                    {lbl.text}
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <div className="ats-sidebar-card__ring-wrap">
+                                    <ScoreRing score={report.matchScore} size={96} />
+                                </div>
+                                <p className="ats-before-after__sub" style={{ textAlign: 'center', marginBottom: 8 }}>
+                                    Original resume
+                                </p>
+                                <p className="ats-sidebar-card__hint">
+                                    Build your tailored resume to see your improved score.
+                                </p>
+                            </>
                         )}
-                        <div className="ats-sidebar-card__divider" />
-                        <p className="ats-sidebar-card__label-score" style={{ color: label.color }}>
-                            {label.text}
-                        </p>
-                        <div className="ats-sidebar-card__divider" />
-                        <div className="ats-quick-stats">
-                            <div className="ats-quick-stat">
-                                <span className="ats-quick-stat__icon">📋</span>
-                                <span className="ats-quick-stat__label">Questions Generated</span>
-                                <span className="ats-quick-stat__val">{totalQs}</span>
-                            </div>
-                            <div className="ats-quick-stat">
-                                <span className="ats-quick-stat__icon">⚠</span>
-                                <span className="ats-quick-stat__label">Skill Gaps Found</span>
-                                <span className="ats-quick-stat__val" style={{ color: gapColor }}>{gapCount}</span>
-                            </div>
-                            <div className="ats-quick-stat">
-                                <span className="ats-quick-stat__icon">📅</span>
-                                <span className="ats-quick-stat__label">Prep Plan</span>
-                                <span className="ats-quick-stat__val">{planDays} days</span>
-                            </div>
-                        </div>
                     </div>
                 </aside>
             </div>
@@ -312,153 +369,162 @@ const ResumeTab = ({ report, onOpenBuilder }) => {
 }
 
 // ─────────────────────────────────────────────────────────────
-// TAB 2 — What Changed
+// TAB: WHAT CHANGED
 // ─────────────────────────────────────────────────────────────
 
-const ChangesTab = ({ report }) => {
-    const gapSkillNames = (report.skillGaps || []).slice(0, 5).map(g => g.skill)
-    const summaryPreview = (report.matchSummary || '').slice(0, 120)
-    const scoreGood = report.matchScore >= 70
+const ChangesTab = ({ report, tailored, onOpenBuilder }) => {
+    if (!tailored) {
+        return (
+            <div className="tab-content tab-changes">
+                <h2 className="tab-section-heading">What Changed</h2>
+                <EmptyResumeState onBuild={onOpenBuilder} />
+            </div>
+        )
+    }
+
+    const ch = tailored.changes || {}
+    const atsBefore = tailored.atsBefore
+    const atsAfter = tailored.atsAfter
+    const hasDiff = atsBefore != null && atsAfter != null
 
     const cards = [
-        {
-            icon: '✓', green: true,
-            title: 'Skills aligned to job description',
-            desc: 'Your skills section was reordered to match the most critical requirements of this role.'
+        ch.skillsAdded?.length > 0 && {
+            title: 'Skills added',
+            tags: ch.skillsAdded,
+            green: true
         },
-        {
-            icon: '✓', green: true,
-            title: 'Professional summary tailored',
-            desc: summaryPreview + (report.matchSummary?.length > 120 ? '...' : '')
+        ch.skillsDeprioritized?.length > 0 && {
+            title: 'Deprioritized skills',
+            tags: ch.skillsDeprioritized,
+            green: false
         },
-        {
-            icon: '✓', green: true,
-            title: 'ATS keywords incorporated',
-            desc: gapSkillNames.length > 0
-                ? `Added: ${gapSkillNames.join(', ')}`
-                : 'Resume keywords were optimized to match this role.'
+        (ch.summaryAngle || ch.summaryText) && {
+            title: 'Summary',
+            body: ch.summaryAngle ? `${ch.summaryAngle}: ${ch.summaryText || ''}` : ch.summaryText,
+            green: true
         },
-        {
-            icon: scoreGood ? '✓' : '⚠', green: scoreGood,
-            title: `ATS match score: ${report.matchScore}%`,
-            desc: report.matchSummary || 'Match analysis complete.'
+        tailored.keywordsGained?.length > 0 && {
+            title: 'Keywords now matched',
+            tags: tailored.keywordsGained,
+            green: true
+        },
+        hasDiff && {
+            title: 'Score',
+            body: `${atsBefore}% → ${atsAfter}% (${atsAfter - atsBefore >= 0 ? '+' : ''}${atsAfter - atsBefore})`,
+            green: atsAfter >= atsBefore
         }
-    ]
+    ].filter(Boolean)
 
     return (
         <div className="tab-content tab-changes">
-            <h2 className="tab-section-heading">Resume Improvements</h2>
-            <p className="tab-section-sub">Key changes made to tailor your resume for this role</p>
-            <div className="changes-list">
-                {cards.map((c, i) => (
-                    <div key={i} className="changes-card">
-                        <div className={`changes-card__icon-wrap ${c.green ? 'changes-card__icon-wrap--green' : 'changes-card__icon-wrap--amber'}`}>
-                            {c.icon}
+            <h2 className="tab-section-heading">What Changed</h2>
+            <p className="tab-section-sub">Changes made when tailoring your resume for this role</p>
+            {cards.length === 0 ? (
+                <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>No change data saved.</p>
+            ) : (
+                <div className="changes-list">
+                    {cards.map((c, i) => (
+                        <div key={i} className="changes-card">
+                            <div className={`changes-card__icon-wrap ${c.green ? 'changes-card__icon-wrap--green' : 'changes-card__icon-wrap--amber'}`}>
+                                {c.green ? '✓' : '⚠'}
+                            </div>
+                            <div className="changes-card__body">
+                                <p className="changes-card__title">{c.title}</p>
+                                {c.tags && (
+                                    <div className="changes-tags">
+                                        {c.tags.map((t, j) => <span key={j} className="changes-tag">{t}</span>)}
+                                    </div>
+                                )}
+                                {c.body && <p className="changes-card__desc">{c.body}</p>}
+                            </div>
                         </div>
-                        <div className="changes-card__body">
-                            <p className="changes-card__title">{c.title}</p>
-                            <p className="changes-card__desc">{c.desc}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }
 
 // ─────────────────────────────────────────────────────────────
-// TAB 3 — ATS Score
+// TAB: ATS SCORE
 // ─────────────────────────────────────────────────────────────
 
-const AtsTab = ({ report }) => {
-    const score = report.matchScore
+const AtsTab = ({ report, tailored, onOpenBuilder }) => {
+    const hasTailored = tailored && tailored.atsAfter != null
+    const score = hasTailored ? tailored.atsAfter : report.matchScore
     const color = scoreColorHex(score)
-    const gapsHigh = (report.skillGaps || []).filter(g => g.severity === 'high' || g.severity === 'medium')
-    const gapsLow = (report.skillGaps || []).filter(g => g.severity === 'low')
-
-    const barLabel = score >= 85 ? 'Strong' : score >= 70 ? 'Good' : score >= 55 ? 'Moderate' : 'Needs Work'
 
     return (
         <div className="tab-content tab-ats">
-            <h2 className="tab-section-heading">ATS Score Breakdown</h2>
+            <h2 className="tab-section-heading">ATS Score</h2>
 
-            <div className="ats-score-hero">
-                <ScoreRing score={score} size={120} />
-                <p className="ats-score-hero__label">Match Score</p>
-            </div>
+            {hasTailored ? (
+                <>
+                    <div className="ats-compare-row">
+                        <div className="ats-compare-block">
+                            <span className="ats-compare-block__label">Original</span>
+                            <span className="ats-compare-block__num" style={{ color: scoreColorHex(tailored.atsBefore) }}>
+                                {tailored.atsBefore}%
+                            </span>
+                        </div>
+                        <span className="ats-compare-arrow">→</span>
+                        <div className="ats-compare-block">
+                            <span className="ats-compare-block__label">Tailored</span>
+                            <span className="ats-compare-block__num ats-compare-block__num--large" style={{ color }}>
+                                {tailored.atsAfter}%
+                            </span>
+                        </div>
+                    </div>
 
-            <div className="ats-breakdown-grid">
-                {/* Strengths */}
-                <div className="ats-col ats-col--green">
-                    <p className="ats-col__title ats-col__title--green">✓ Strengths</p>
-                    <ul className="ats-col__list">
-                        {gapsLow.map((g, i) => (
-                            <li key={i} className="ats-col__item">
-                                <span className="ats-dot ats-dot--green" />
-                                {g.skill}
-                            </li>
-                        ))}
-                        <li className="ats-col__item">
-                            <span className="ats-dot ats-dot--green" />
-                            Strong experience aligned to role
-                        </li>
-                        <li className="ats-col__item">
-                            <span className="ats-dot ats-dot--green" />
-                            Resume tailored to job requirements
-                        </li>
-                    </ul>
+                    <AtsBar before={tailored.atsBefore} after={tailored.atsAfter} />
+                </>
+            ) : (
+                <div className="ats-score-hero">
+                    <ScoreRing score={report.matchScore} size={120} />
+                    <p className="ats-score-hero__label">Original resume match</p>
+                    {!tailored && (
+                        <button className="dl-btn dl-btn--primary" style={{ marginTop: 16 }} onClick={onOpenBuilder}>
+                            Build tailored resume
+                        </button>
+                    )}
                 </div>
+            )}
 
-                {/* Gaps */}
-                <div className="ats-col ats-col--amber">
-                    <p className="ats-col__title ats-col__title--amber">⚠ Gaps</p>
-                    <ul className="ats-col__list">
-                        {gapsHigh.length === 0 ? (
-                            <li className="ats-col__item ats-col__item--muted">No major gaps identified.</li>
-                        ) : gapsHigh.map((g, i) => (
-                            <li key={i} className="ats-col__item ats-col__item--gap">
-                                <span className="ats-gap__skill">{g.skill}</span>
-                                {g.reason && <span className="ats-gap__reason">{g.reason}</span>}
-                            </li>
-                        ))}
-                    </ul>
+            {report.matchSummary && (
+                <div className="ats-why-section">
+                    <p className="tab-overline">WHY THIS SCORE</p>
+                    <p className="ats-why-text">{report.matchSummary}</p>
                 </div>
-            </div>
+            )}
 
-            {/* Score bar */}
-            <div className="ats-score-bar-wrap">
-                <div className="ats-score-bar">
-                    <div
-                        className="ats-score-bar__fill"
-                        style={{ width: `${score}%`, backgroundColor: color }}
-                    />
-                    <div
-                        className="ats-score-bar__marker"
-                        style={{ left: `${score}%` }}
-                    >
-                        <span className="ats-score-bar__marker-label">{score}%</span>
+            {hasTailored && (
+                <div className="ats-keywords-grid">
+                    <div className="ats-kw-col">
+                        <p className="tab-overline" style={{ color: '#22c55e' }}>✓ MATCHED KEYWORDS</p>
+                        <div className="kw-tags">
+                            {(tailored.matchedAfter || []).length === 0
+                                ? <span className="kw-tag kw-tag--muted">None</span>
+                                : (tailored.matchedAfter || []).map((k, i) => <span key={i} className="kw-tag kw-tag--green">{k}</span>)
+                            }
+                        </div>
+                    </div>
+                    <div className="ats-kw-col">
+                        <p className="tab-overline" style={{ color: '#f59e0b' }}>⚠ STILL MISSING</p>
+                        <div className="kw-tags">
+                            {(tailored.missingAfter || []).length === 0
+                                ? <span className="kw-tag kw-tag--muted">None — great match!</span>
+                                : (tailored.missingAfter || []).map((k, i) => <span key={i} className="kw-tag kw-tag--amber">{k}</span>)
+                            }
+                        </div>
                     </div>
                 </div>
-                <div className="ats-score-bar__labels">
-                    <span>0</span>
-                    <span>25</span>
-                    <span>50</span>
-                    <span>75</span>
-                    <span>100</span>
-                </div>
-                <div className="ats-score-bar__ranges">
-                    <span>Needs Work</span>
-                    <span>Moderate</span>
-                    <span>Good</span>
-                    <span>Strong</span>
-                </div>
-            </div>
+            )}
         </div>
     )
 }
 
 // ─────────────────────────────────────────────────────────────
-// TAB 4 — Skill Roadmap
+// TAB: SKILL ROADMAP
 // ─────────────────────────────────────────────────────────────
 
 const RoadmapTab = ({ report }) => {
@@ -467,45 +533,29 @@ const RoadmapTab = ({ report }) => {
         if (s === 'medium') return '#f59e0b'
         return '#22c55e'
     }
-
     return (
         <div className="tab-content tab-roadmap">
             <h2 className="tab-section-heading">Your Learning Roadmap</h2>
             <p className="tab-section-sub">A day-by-day plan based on your identified skill gaps</p>
-
-            {/* Skill Gaps */}
             <p className="tab-overline">GAPS TO ADDRESS</p>
-            {report.skillGaps?.length === 0 ? (
-                <div className="roadmap-no-gaps">
-                    <span>✓</span> No major skill gaps identified — great match!
-                </div>
+            {!report.skillGaps?.length ? (
+                <div className="roadmap-no-gaps">✓ No major skill gaps — great match!</div>
             ) : (
                 <div className="roadmap-gaps-list">
-                    {(report.skillGaps || []).map((gap, i) => (
-                        <div
-                            key={i}
-                            className="roadmap-gap-card"
-                            style={{ borderLeftColor: severityColor(gap.severity) }}
-                        >
+                    {report.skillGaps.map((gap, i) => (
+                        <div key={i} className="roadmap-gap-card" style={{ borderLeftColor: severityColor(gap.severity) }}>
                             <div className="roadmap-gap-card__top">
                                 <span className="roadmap-gap-card__skill">{gap.skill}</span>
-                                <span
-                                    className="roadmap-gap-card__badge"
-                                    style={{ color: severityColor(gap.severity), borderColor: severityColor(gap.severity) }}
-                                >
+                                <span className="roadmap-gap-card__badge" style={{ color: severityColor(gap.severity), borderColor: severityColor(gap.severity) }}>
                                     {(gap.severity || 'medium').toUpperCase()}
                                 </span>
                             </div>
                             {gap.reason && <p className="roadmap-gap-card__reason">{gap.reason}</p>}
-                            {gap.suggestion && (
-                                <p className="roadmap-gap-card__suggestion">💡 {gap.suggestion}</p>
-                            )}
+                            {gap.suggestion && <p className="roadmap-gap-card__suggestion">💡 {gap.suggestion}</p>}
                         </div>
                     ))}
                 </div>
             )}
-
-            {/* Prep Plan */}
             <p className="tab-overline" style={{ marginTop: 28 }}>DAY-BY-DAY PLAN</p>
             <div className="roadmap-plan-list">
                 {(report.preparationPlan || []).map((day) => (
@@ -514,9 +564,7 @@ const RoadmapTab = ({ report }) => {
                         <div className="roadmap-plan-day__content">
                             <p className="roadmap-plan-day__focus">{day.focus}</p>
                             <ul className="roadmap-plan-day__tasks">
-                                {(day.tasks || []).map((task, i) => (
-                                    <li key={i}>→ {task}</li>
-                                ))}
+                                {(day.tasks || []).map((task, i) => <li key={i}>→ {task}</li>)}
                             </ul>
                         </div>
                     </div>
@@ -527,16 +575,73 @@ const RoadmapTab = ({ report }) => {
 }
 
 // ─────────────────────────────────────────────────────────────
-// MAIN INTERVIEW / REPORT PAGE
+// TAB: TECHNICAL Q
+// ─────────────────────────────────────────────────────────────
+
+const TechnicalTab = ({ report }) => (
+    <div className="tab-content">
+        <h2 className="tab-section-heading">
+            Technical Questions
+            <span className="questions-section__count">{report.technicalQuestions?.length || 0}</span>
+        </h2>
+        <div className="q-list">
+            {(report.technicalQuestions || []).map((q, i) => <QuestionCard key={i} item={q} index={i} />)}
+        </div>
+    </div>
+)
+
+// ─────────────────────────────────────────────────────────────
+// TAB: BEHAVIORAL Q
+// ─────────────────────────────────────────────────────────────
+
+const BehavioralTab = ({ report }) => (
+    <div className="tab-content">
+        <h2 className="tab-section-heading">
+            Behavioral Questions
+            <span className="questions-section__count">{report.behavioralQuestions?.length || 0}</span>
+        </h2>
+        <div className="q-list">
+            {(report.behavioralQuestions || []).map((q, i) => <QuestionCard key={i} item={q} index={i} />)}
+        </div>
+    </div>
+)
+
+// ─────────────────────────────────────────────────────────────
+// TABS CONFIG
+// ─────────────────────────────────────────────────────────────
+
+const TABS = [
+    { id: 'resume',    label: 'Resume' },
+    { id: 'changed',   label: 'What Changed' },
+    { id: 'ats',       label: 'ATS Score' },
+    { id: 'roadmap',   label: 'Skill Roadmap' },
+    { id: 'technical', label: 'Technical Q' },
+    { id: 'behavioral',label: 'Behavioral Q' }
+]
+
+// ─────────────────────────────────────────────────────────────
+// MAIN PAGE
 // ─────────────────────────────────────────────────────────────
 
 const Interview = () => {
-    const [activeTab, setActiveTab] = useState(TAB_RESUME)
+    const [searchParams, setSearchParams] = useSearchParams()
+    const activeTab = searchParams.get('tab') || 'resume'
+    const setTab = (id) => setSearchParams({ tab: id }, { replace: true })
+
     const [showResumeBuilder, setShowResumeBuilder] = useState(false)
-    const { report, loading } = useInterview()
+    const { report, loading, setReport } = useInterview()
+    const { user } = useAuth()
     const { interviewId, id: routeId } = useParams()
     const effectiveId = interviewId || routeId
     const navigate = useNavigate()
+
+    // local tailoredResume — starts from report, updated after modal completes
+    const [tailored, setTailored] = useState(null)
+    useEffect(() => {
+        if (report?.tailoredResume?.html) {
+            setTailored(report.tailoredResume)
+        }
+    }, [report])
 
     if (loading) return <LoadingScreen />
 
@@ -548,11 +653,18 @@ const Interview = () => {
         )
     }
 
-    const handleMockInterview = () => navigate(`/mock-interview/${effectiveId}`)
+    const handleResumeReady = (tailoredResume) => {
+        setTailored(tailoredResume)
+        // Also update the report in context so reloading preserves it
+        if (setReport) setReport(prev => prev ? { ...prev, tailoredResume } : prev)
+        setShowResumeBuilder(false)
+        setTab('resume')
+        toast.success('Resume ready!')
+    }
 
     return (
         <div className="interview-page">
-            {/* ── Sticky Top Bar ── */}
+            {/* Sticky top bar */}
             <div className="report-topbar">
                 <div className="report-topbar__left">
                     <span className="report-topbar__title">{report.title || 'Interview Report'}</span>
@@ -567,71 +679,52 @@ const Interview = () => {
                         <button
                             key={tab.id}
                             className={`topbar-tab ${activeTab === tab.id ? 'topbar-tab--active' : ''}`}
-                            onClick={() => setActiveTab(tab.id)}
+                            onClick={() => setTab(tab.id)}
                         >
                             {tab.label}
                         </button>
                     ))}
-                    <button
-                        className="topbar-mock-btn"
-                        onClick={handleMockInterview}
-                    >
+                    <button className="topbar-mock-btn" onClick={() => navigate(`/mock-interview/${effectiveId}`)}>
                         Mock Interview →
                     </button>
                 </div>
             </div>
 
-            {/* ── Tab Content Area ── */}
+            {/* Tab content — only the active tab renders */}
             <div className="interview-body">
-                {activeTab === TAB_RESUME && (
-                    <ResumeTab report={report} onOpenBuilder={() => setShowResumeBuilder(true)} />
+                {activeTab === 'resume' && (
+                    <ResumeTab
+                        report={report}
+                        tailored={tailored}
+                        onOpenBuilder={() => setShowResumeBuilder(true)}
+                        user={user}
+                    />
                 )}
-                {activeTab === TAB_CHANGES && <ChangesTab report={report} />}
-                {activeTab === TAB_ATS && <AtsTab report={report} />}
-                {activeTab === TAB_ROADMAP && <RoadmapTab report={report} />}
-
-                {/* ── Technical Questions (always visible below tabs) ── */}
-                <div className="report-questions-divider" />
-
-                <section id="technical-questions" className="questions-section">
-                    <h2 className="questions-section__heading">
-                        Technical Questions
-                        <span className="questions-section__count">
-                            {report.technicalQuestions?.length || 0}
-                        </span>
-                    </h2>
-                    <div className="q-list">
-                        {(report.technicalQuestions || []).map((q, i) => (
-                            <QuestionCard key={i} item={q} index={i} />
-                        ))}
-                    </div>
-                </section>
-
-                {/* ── Behavioral Questions ── */}
-                <section id="behavioral-questions" className="questions-section">
-                    <h2 className="questions-section__heading">
-                        Behavioral Questions
-                        <span className="questions-section__count">
-                            {report.behavioralQuestions?.length || 0}
-                        </span>
-                    </h2>
-                    <div className="q-list">
-                        {(report.behavioralQuestions || []).map((q, i) => (
-                            <QuestionCard key={i} item={q} index={i} />
-                        ))}
-                    </div>
-                </section>
+                {activeTab === 'changed' && (
+                    <ChangesTab
+                        report={report}
+                        tailored={tailored}
+                        onOpenBuilder={() => setShowResumeBuilder(true)}
+                    />
+                )}
+                {activeTab === 'ats' && (
+                    <AtsTab
+                        report={report}
+                        tailored={tailored}
+                        onOpenBuilder={() => setShowResumeBuilder(true)}
+                    />
+                )}
+                {activeTab === 'roadmap' && <RoadmapTab report={report} />}
+                {activeTab === 'technical' && <TechnicalTab report={report} />}
+                {activeTab === 'behavioral' && <BehavioralTab report={report} />}
             </div>
 
-            {/* ── Resume Builder Modal ── */}
+            {/* Resume Builder Modal */}
             {showResumeBuilder && report && (
                 <ResumeBuilderModal
                     report={report}
                     onClose={() => setShowResumeBuilder(false)}
-                    onDownloadComplete={() => {
-                        setShowResumeBuilder(false)
-                        toast.success('Resume downloaded!')
-                    }}
+                    onResumeReady={handleResumeReady}
                 />
             )}
         </div>

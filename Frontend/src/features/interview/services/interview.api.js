@@ -1,4 +1,4 @@
-﻿import axios from "axios";
+import axios from "axios";
 
 // Authenticated API — sends cookies automatically
 const API_BASE_URL =
@@ -80,6 +80,37 @@ export const generateResumePdf = async ({ interviewReportId, confirmedSkills = [
         `/api/interview/resume/pdf/${interviewReportId}`,
         { confirmedSkills, chosenSummary, skillsWithEvidence, irrelevantSkillsToDeprioritize },
         { responseType: "blob" }
+    )
+    return response.data
+}
+
+
+/**
+ * @description Generate tailored resume (HTML) + ATS scoring. No PDF.
+ */
+export const generateTailoredResume = async ({
+    reportId,
+    confirmedSkills = [],
+    chosenSummary = null,
+    skillsWithEvidence = [],
+    irrelevantSkillsToDeprioritize = [],
+    summaryLabel = ''
+}) => {
+    const response = await api.post(
+        `/api/interview/resume/generate/${reportId}`,
+        { confirmedSkills, chosenSummary, skillsWithEvidence, irrelevantSkillsToDeprioritize, summaryLabel }
+    )
+    return response.data
+}
+
+
+/**
+ * @description Download the saved tailored resume PDF. No AI call.
+ */
+export const downloadTailoredResumePdf = async (reportId) => {
+    const response = await api.get(
+        `/api/interview/resume/pdf/${reportId}`,
+        { responseType: 'blob' }
     )
     return response.data
 }

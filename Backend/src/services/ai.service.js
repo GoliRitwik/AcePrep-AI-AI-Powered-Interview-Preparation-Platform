@@ -29,6 +29,26 @@ const BANNED_WORDS = [
 const MAX_RESUME_RETRIES = 2
 
 // ═══════════════════════════════════════════════════════════════════════════
+// HTML SAFETY
+// ═══════════════════════════════════════════════════════════════════════════
+function escapeHtml(str) {
+    if (str == null) return ''
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+}
+
+function safeHref(url) {
+    if (typeof url !== 'string') return null
+    const trimmed = url.trim()
+    if (/^https?:\/\//i.test(trimmed) || /^mailto:/i.test(trimmed)) return trimmed
+    return null
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // INTERVIEW REPORT SCHEMA
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -187,9 +207,11 @@ async function generatePdfFromHtml(htmlContent) {
 
 
 function buildResumeHtml(content) {
+    const e = escapeHtml
+
     const skillsRowsHtml = content.skillsRows.map(row =>
         `<div class="skills-row">${row.items.map(item =>
-            `<span class="skill-item"><strong>${item.label}:</strong> ${item.value}</span>`
+            `<span class="skill-item"><strong>${e(item.label)}:</strong> ${e(item.value)}</span>`
         ).join('\n      ')
         }</div>`
     ).join('\n  ')
@@ -198,20 +220,24 @@ function buildResumeHtml(content) {
     <div class="section">
       <div class="section-title">Internships</div>
       ${content.internships.map(org => `
-        <div class="org-title">${org.organisation}</div>
+        <div class="org-title">${e(org.organisation)}</div>
         <ul>
-          ${org.bullets.map(b => `<li>${b}</li>`).join('\n          ')}
+          ${org.bullets.map(b => `<li>${e(b)}</li>`).join('\n          ')}
         </ul>`).join('')}
     </div>` : ''
 
     const projectsHtml = content.projects.map(p => `
     <div class="project-header">
-      <span class="project-name">${p.name}</span>
-      <span class="project-stack">${p.stack}</span>
+      <span class="project-name">${e(p.name)}</span>
+      <span class="project-stack">${e(p.stack)}</span>
     </div>
     <ul>
-      ${p.bullets.map(b => `<li>${b}</li>`).join('\n      ')}
+      ${p.bullets.map(b => `<li>${e(b)}</li>`).join('\n      ')}
     </ul>`).join('')
+
+    const emailHref = safeHref(`mailto:${content.email}`)
+    const githubHref = safeHref(content.githubUrl)
+    const linkedinHref = safeHref(content.linkedinUrl)
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -269,19 +295,19 @@ function buildResumeHtml(content) {
 <body>
 
 <div class="header">
-  <h1>${content.name}</h1>
+  <h1>${e(content.name)}</h1>
   <div class="contact">
-    <a href="mailto:${content.email}">${content.email}</a>
-    <span>—</span>${content.phone}<span>—</span>
-    <a href="${content.githubUrl}">GitHub</a>
+    ${emailHref ? `<a href="${e(emailHref)}">${e(content.email)}</a>` : e(content.email)}
+    <span>—</span>${e(content.phone)}<span>—</span>
+    ${githubHref ? `<a href="${e(githubHref)}">GitHub</a>` : 'GitHub'}
     <span>—</span>
-    <a href="${content.linkedinUrl}">LinkedIn</a>
+    ${linkedinHref ? `<a href="${e(linkedinHref)}">LinkedIn</a>` : 'LinkedIn'}
   </div>
 </div>
 
 <div class="section">
   <div class="section-title">Summary</div>
-  <p style="font-size:10pt;line-height:1.4;">${content.summary}</p>
+  <p style="font-size:10pt;line-height:1.4;">${e(content.summary)}</p>
 </div>
 
 <div class="section">
@@ -324,12 +350,12 @@ ${internshipsHtml}
 
 <div class="section">
   <div class="section-title">Certifications</div>
-  <div class="certs">${content.certifications}</div>
+  <div class="certs">${e(content.certifications)}</div>
 </div>
 
 <div class="section">
   <div class="section-title">Coding Profiles</div>
-  <div class="coding">${content.codingProfiles}</div>
+  <div class="coding">${e(content.codingProfiles)}</div>
 </div>
 
 </body>
@@ -613,8 +639,154 @@ async function generateResumePdf({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// RESUME BUILDER — SUMMARY OPTIONS
+// RESUME CONTENT TO PLAIN TEXT
 // ═══════════════════════════════════════════════════════════════════════════
+
+function resumeContentToText(content) {
+    const lines = []
+    lines.push(content.name || '')
+    lines.push(content.email || '', content.phone || '')
+    lines.push('Summary:', content.summary || '')
+
+    if (content.skillsRows) {
+        lines.push('Skills:')
+        for (const row of content.skillsRows) {
+            for (const item of (row.items || [])) {
+                lines.push(`${item.label}: ${item.value}`)
+            }
+        }
+    }
+
+    if (content.internships && content.internships.length > 0) {
+        lines.push('Internships:')
+        for (const org of content.internships) {
+            lines.push(org.organisation || '')
+            for (const b of (org.bullets || [])) lines.push(b)
+        }
+    }
+
+    if (content.projects) {
+        lines.push('Projects:')
+        for (const p of content.projects) {
+            lines.push(`${p.name} — ${p.stack}`)
+            for (const b of (p.bullets || [])) lines.push(b)
+        }
+    }
+
+    lines.push('Certifications:', content.certifications || '')
+    lines.push('Coding Profiles:', content.codingProfiles || '')
+
+    return lines.filter(l => l.trim()).join('\n')
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GENERATE TAILORED RESUME (no PDF — returns { content, html })
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function generateTailoredResume({
+    resume, selfDescription, jobDescription,
+    confirmedSkills = [], chosenSummary = null,
+    skillsWithEvidence = [], irrelevantSkillsToDeprioritize = []
+}) {
+    const projectNameMatches = resume.match(/^([A-Z][^\u2013\n]{5,60})(?:\s*[\u2013-])/gm) || []
+    const originalProjectNames = projectNameMatches.map(n =>
+        n.replace(/\s*[\u2013-].*/, '').trim()
+    )
+
+    const content = await generateValidatedResumeContent({
+        resume, selfDescription, jobDescription, originalProjectNames,
+        confirmedSkills, chosenSummary, skillsWithEvidence, irrelevantSkillsToDeprioritize
+    })
+    const html = buildResumeHtml(content)
+    return { content, html }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SCORE RESUME COMPARISON (original vs tailored — single AI call)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const scoreComparisonSchema = z.object({
+    original: z.object({
+        score: z.number().min(0).max(100),
+        matchedKeywords: z.array(z.string()).max(12),
+        missingKeywords: z.array(z.string()).max(12)
+    }),
+    tailored: z.object({
+        score: z.number().min(0).max(100),
+        matchedKeywords: z.array(z.string()).max(12),
+        missingKeywords: z.array(z.string()).max(12)
+    })
+})
+
+async function scoreResumeComparison({ originalResume, tailoredText, jobDescription }) {
+    const prompt =
+        "You are an ATS scoring engine. Score both resumes against the job description " +
+        "using the EXACT SAME rubric. Be strict — do not be generous.\n\n" +
+        "JOB DESCRIPTION:\n" + jobDescription + "\n\n" +
+        "ORIGINAL RESUME:\n" + originalResume + "\n\n" +
+        "TAILORED RESUME:\n" + tailoredText + "\n\n" +
+        "SCORING RULES:\n" +
+        "1. Extract every requirement from the JD. Mark must-have requirements (mentioned early, " +
+        "repeated, or under 'Required') with 3x weight. Nice-to-have (under 'Preferred', 'Bonus', " +
+        "mentioned once) with 1x weight.\n" +
+        "2. score = (sum of weights of requirements explicitly evidenced) / (total weight) x 100.\n" +
+        "3. A requirement is evidenced ONLY if that resume's own text explicitly mentions it. " +
+        "Never assume. Never give credit because the other resume has it.\n" +
+        "4. Apply the identical rubric to BOTH resumes independently.\n" +
+        "5. Max 12 keywords per list. Use the job description's own wording.\n" +
+        "6. Do NOT force the tailored score to be higher. Report honestly.\n" +
+        "7. matchedKeywords: JD requirements clearly evidenced in THAT resume.\n" +
+        "8. missingKeywords: JD requirements NOT evidenced in THAT resume."
+
+    const response = await ai.models.generateContent({
+        model: REPORT_MODEL,
+        contents: prompt,
+        config: {
+            temperature: 0.1,
+            responseMimeType: 'application/json',
+            responseSchema: zodToJsonSchema(scoreComparisonSchema)
+        }
+    })
+
+    const raw = JSON.parse(response.text)
+
+    // JS post-processing
+    const clamp = (n) => Math.max(0, Math.min(100, Math.round(n)))
+
+    const verifyKeywords = (matched, missing, resumeText) => {
+        const textLower = resumeText.toLowerCase()
+        const verified = []
+        const moved = []
+        for (const kw of matched) {
+            const words = kw.match(/[a-zA-Z]{3,}/g) || []
+            const found = words.length > 0 && words.some(w => textLower.includes(w.toLowerCase()))
+            if (found) verified.push(kw)
+            else moved.push(kw)
+        }
+        return { matched: verified, missing: [...missing, ...moved] }
+    }
+
+    const origVerified = verifyKeywords(raw.original.matchedKeywords, raw.original.missingKeywords, originalResume)
+    const tailVerified = verifyKeywords(raw.tailored.matchedKeywords, raw.tailored.missingKeywords, tailoredText)
+
+    const keywordsGained = tailVerified.matched.filter(k =>
+        !origVerified.matched.some(o => o.toLowerCase() === k.toLowerCase())
+    )
+
+    return {
+        atsBefore: clamp(raw.original.score),
+        atsAfter: clamp(raw.tailored.score),
+        matchedBefore: origVerified.matched,
+        matchedAfter: tailVerified.matched,
+        missingAfter: tailVerified.missing,
+        keywordsGained
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RESUME BUILDER — SUMMARY OPTIONS
 
 const summaryOptionsSchema = z.object({
     summaryA: z.object({
@@ -1026,6 +1198,10 @@ async function generateMockInterviewFeedback({ conversationHistory, report, mode
 module.exports = {
     generateInterviewReport,
     generateResumePdf,
+    generatePdfFromHtml,
+    generateTailoredResume,
+    scoreResumeComparison,
+    resumeContentToText,
     generateSummaryOptions,
     buildQuestionPool,
     classifyAnswer,
