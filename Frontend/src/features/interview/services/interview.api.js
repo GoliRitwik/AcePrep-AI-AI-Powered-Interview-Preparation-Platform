@@ -117,6 +117,23 @@ export const downloadTailoredResumePdf = async (reportId) => {
 
 
 /**
+ * @description Edit tailored resume content in place (live preview or save).
+ * @param {string} reportId
+ * @param {object} content - sanitized resume content
+ * @param {boolean} save - whether to persist to DB
+ * @param {AbortSignal} [signal] - optional abort signal for debounced calls
+ */
+export const updateTailoredResume = async (reportId, content, save = false, signal = null) => {
+    const response = await api.patch(
+        `/api/interview/resume/${reportId}`,
+        { content, save },
+        { signal }
+    )
+    return response.data
+}
+
+
+/**
  * @description Service to delete an interview plan by id.
  */
 export const deleteInterviewPlan = async (id) => {

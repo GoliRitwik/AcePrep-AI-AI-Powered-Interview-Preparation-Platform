@@ -216,8 +216,15 @@ $text-muted:      rgba(255,255,255,0.4);
 // PAGE LAYOUT
 // ─────────────────────────────────────────────────────────────
 .interview-page {
-  min-height: 100vh;
+  min-height: calc(100vh - 56px);
   background: $bg;
+
+  &--resume-active {
+    @media (min-width: 1024px) {
+      height: calc(100vh - 56px);
+      overflow: hidden;
+    }
+  }
 }
 
 .report-error-state {
@@ -227,47 +234,36 @@ $text-muted:      rgba(255,255,255,0.4);
 }
 
 // ─────────────────────────────────────────────────────────────
-// TOP BAR
+// TAB BAR DIRECTLY UNDER FIXED NAVBAR
 // ─────────────────────────────────────────────────────────────
-.report-topbar {
-  background: $bg;
-  border-bottom: 1px solid $border;
-  padding: 10px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.report-tab-bar {
   position: sticky;
   top: 56px;
   z-index: 90;
-  gap: 16px;
-  flex-wrap: wrap;
-
-  &__left {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+  background: var(--bg, #0f0f0f);
+  border-bottom: 1px solid var(--border, #1e1e1e);
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
 
-  &__title {
-    font-size: 15px;
-    font-weight: 500;
-    color: $text-primary;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 300px;
-  }
-
-  &__date {
-    font-size: 12px;
-    color: $text-muted;
-  }
-
-  &__right {
+  &__tabs {
     display: flex;
     align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  &__spacer {
+    flex: 1;
+    min-width: 16px;
   }
 }
 
@@ -323,6 +319,18 @@ $text-muted:      rgba(255,255,255,0.4);
   margin: 0 auto;
   padding: 32px 24px 80px;
   box-sizing: border-box;
+  width: 100%;
+
+  &--resume-active {
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+
+    @media (min-width: 1024px) {
+      height: calc(100vh - 56px - 49px);
+      overflow: hidden;
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -330,6 +338,12 @@ $text-muted:      rgba(255,255,255,0.4);
 // ─────────────────────────────────────────────────────────────
 .tab-content {
   margin-bottom: 0;
+  animation: tab-fade-in 150ms ease-out;
+}
+
+@keyframes tab-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .tab-section-heading {
@@ -389,43 +403,57 @@ $text-muted:      rgba(255,255,255,0.4);
 // TAB 1: RESUME
 // ─────────────────────────────────────────────────────────────
 .tab-resume {
+  width: 100%;
+  height: 100%;
+
+  &--empty {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 0 24px;
+  }
+
   &__grid {
     display: flex;
-    gap: 24px;
-    align-items: flex-start;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+
+    @media (min-width: 1024px) {
+      height: calc(100vh - 56px - 49px);
+      overflow: hidden;
+    }
+
+    @media (max-width: 1023px) {
+      flex-direction: column;
+      height: auto;
+    }
   }
 
   &__left {
-    flex: 0 0 calc(65% - 12px);
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    gap: 16px;
   }
 
   &__right {
-    flex: 0 0 calc(35% - 12px);
-    position: sticky;
-    top: 116px;
-  }
-
-  &__header-row {
+    width: 400px;
+    flex-shrink: 0;
+    height: 100%;
+    overflow-y: auto;
+    border-left: 1px solid $border;
+    background: $bg-card;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
+    flex-direction: column;
 
-  &__heading {
-    font-size: 16px;
-    font-weight: 600;
-    color: $text-primary;
-    margin: 0;
-  }
-
-  &__dl-row {
-    display: flex;
-    gap: 8px;
+    @media (max-width: 1023px) {
+      width: 100%;
+      height: auto;
+      border-left: none;
+      border-top: 1px solid $border;
+    }
   }
 }
 
@@ -1381,77 +1409,197 @@ $text-muted:      rgba(255,255,255,0.4);
 
 
 // ─────────────────────────────────────────────────────────────
-// REPORT HEADLINE HEADER (above sticky topbar)
+// ATS TAB BREAKDOWN & ENHANCEMENTS
 // ─────────────────────────────────────────────────────────────
-.report-headline {
+.ats-breakdown-section {
+  margin-top: 24px;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 28px 24px 20px;
-  gap: 16px;
+  flex-direction: column;
+  gap: 10px;
+}
 
-  &__left {
+.ats-breakdown-card {
+  background: $bg-card;
+  border: 1px solid $border;
+  border-radius: 8px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ats-breakdown-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  &__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: $text-primary;
+  }
+
+  &__score {
+    font-size: 12px;
+    font-weight: 600;
+    color: $text-secondary;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__bar-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  &__bar-fill {
+    height: 100%;
+    background: $accent;
+    border-radius: 999px;
+    transition: width 0.4s ease-out;
+  }
+
+  &__detail {
+    font-size: 12px;
+    color: $text-muted;
+    margin: 0;
+  }
+}
+
+.must-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+
+  &--green { background: #22c55e; }
+  &--amber { background: #f59e0b; }
+}
+
+.kw-tag--pink {
+  background: rgba(236, 72, 153, 0.1);
+  border-color: rgba(236, 72, 153, 0.3);
+  color: #ec4899;
+}
+
+.ats-footer-rubric-note {
+  font-size: 12px;
+  color: $text-muted;
+  margin-top: 28px;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.ats-v1-hint {
+  padding: 12px 16px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 8px;
+  color: $text-secondary;
+  font-size: 13px;
+  margin-top: 16px;
+  line-height: 1.5;
+}
+
+.ats-gained-section {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// ─────────────────────────────────────────────────────────────
+// ATS SIDEBAR CARD (RESUME TAB RIGHT COLUMN)
+// ─────────────────────────────────────────────────────────────
+.ats-sidebar-card {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+
+  &__explanation {
+    font-size: 13px;
+    color: $text-secondary;
+    line-height: 1.5;
+    margin: 0;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid $border;
+    border-radius: 6px;
+  }
+
+  &__kw-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  &__kw-count {
+    font-size: 13px;
+    font-weight: 500;
+    color: $text-primary;
+    margin: 0;
+  }
+
+  &__missing-chips {
     display: flex;
     flex-direction: column;
     gap: 6px;
   }
 
-  &__title-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  &__h1 {
-    font-size: 22px;
-    font-weight: 700;
-    color: $text-primary;
-    margin: 0;
-
-    &--plain {
-      font-size: 20px;
-      font-weight: 600;
-    }
-  }
-
-  &__chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 10px;
-    border-radius: 999px;
-    border: 1px solid;
-    font-size: 12px;
+  &__missing-label {
+    font-size: 11px;
+    color: $text-muted;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
     font-weight: 600;
-    white-space: nowrap;
   }
 
-  &__sub {
-    font-size: 13px;
-    color: $text-muted;
-    margin: 0;
+  &__chips-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
-  &__start-over {
-    flex-shrink: 0;
-    background: transparent;
-    border: 1px solid $border;
-    border-radius: 8px;
-    color: $text-muted;
-    font-size: 13px;
-    padding: 8px 16px;
+  &__view-all-btn {
+    align-self: flex-start;
+    background: none;
+    border: none;
+    color: $accent;
+    font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
-    white-space: nowrap;
+    padding: 0;
+    margin-top: 4px;
+    text-decoration: underline;
 
     &:hover {
-      color: $text-primary;
-      border-color: $border-subtle;
+      color: #d4357f;
     }
   }
 }
 
-// Remove left side from topbar (now shown in headline)
-.report-topbar {
-  justify-content: flex-end;
+.ats-mini-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  color: #f59e0b;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
 }

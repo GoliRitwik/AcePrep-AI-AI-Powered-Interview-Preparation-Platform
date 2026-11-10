@@ -7,6 +7,8 @@ import toast from 'react-hot-toast'
 import ResumeBuilderModal from '../components/ResumeBuilderModal/ResumeBuilderModal.jsx'
 import { downloadTailoredResumePdf } from '../services/interview.api.js'
 import ScoreCompare from '../components/ScoreCompare/ScoreCompare.jsx'
+import ResumePreview from '../components/ResumePreview/ResumePreview.jsx'
+import ResumeEditor from '../components/ResumeEditor/ResumeEditor.jsx'
 
 // ─────────────────────────────────────────────────────────────
 // LOADING SCREEN
@@ -92,28 +94,10 @@ const LoadingScreen = () => {
 // HELPERS
 // ─────────────────────────────────────────────────────────────
 
-function relativeTime(dateStr) {
-    if (!dateStr) return ''
-    const diff = Date.now() - new Date(dateStr).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 1) return 'just now'
-    if (mins < 60) return `${mins} min ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs} h ago`
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 const scoreColorHex = (score) => {
     if (score >= 80) return '#22c55e'
     if (score >= 60) return '#f59e0b'
     return '#ef4444'
-}
-
-const scoreLabel = (s) => {
-    if (s >= 85) return { text: 'Strong Match', color: '#22c55e' }
-    if (s >= 70) return { text: 'Good Match', color: '#86efac' }
-    if (s >= 55) return { text: 'Moderate Match', color: '#f59e0b' }
-    return { text: 'Needs Work', color: '#ef4444' }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -173,33 +157,7 @@ const QuestionCard = ({ item, index }) => {
 }
 
 // ─────────────────────────────────────────────────────────────
-// ATS BAR (before/after)
-// ─────────────────────────────────────────────────────────────
-
-const AtsBar = ({ before, after }) => {
-    const colorAfter = scoreColorHex(after)
-    return (
-        <div className="ats-bar-wrap">
-            <div className="ats-bar-track">
-                <div className="ats-bar-fill" style={{ width: `${after}%`, backgroundColor: colorAfter }} />
-                {/* before marker */}
-                <div className="ats-bar-marker ats-bar-marker--before" style={{ left: `${before}%` }}>
-                    <span className="ats-bar-marker__label">{before}%</span>
-                </div>
-                {/* after marker */}
-                <div className="ats-bar-marker ats-bar-marker--after" style={{ left: `${after}%` }}>
-                    <span className="ats-bar-marker__label">{after}%</span>
-                </div>
-            </div>
-            <div className="ats-bar-labels">
-                <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
-            </div>
-        </div>
-    )
-}
-
-// ─────────────────────────────────────────────────────────────
-// EMPTY STATE
+// EMPTY RESUME STATE
 // ─────────────────────────────────────────────────────────────
 
 const EmptyResumeState = ({ onBuild }) => (
@@ -213,27 +171,15 @@ const EmptyResumeState = ({ onBuild }) => (
 )
 
 // ─────────────────────────────────────────────────────────────
-// TAB: RESUME
+// TAB: RESUME WORKSPACE
 // ─────────────────────────────────────────────────────────────
 
-const ResumeTab = ({ report, tailored, onOpenBuilder, user }) => {
-    const panelRef = useRef(null)
-    const [scale, setScale] = useState(1)
+const ResumeTab = ({ report, tailored, setTailored, onOpenBuilder, user, onTabChange }) => {
+    const [isEditing, setIsEditing] = useState(false)
     const [pdfLoading, setPdfLoading] = useState(false)
-
-    const updateScale = useCallback(() => {
-        if (panelRef.current) {
-            const w = panelRef.current.clientWidth
-            setScale(w / 794)
-        }
-    }, [])
-
-    useEffect(() => {
-        updateScale()
-        const ro = new ResizeObserver(updateScale)
-        if (panelRef.current) ro.observe(panelRef.current)
-        return () => ro.disconnect()
-    }, [updateScale])
+    const [isUpdatingPreview, setIsUpdatingPreview] = useState(false)
+    const [resumePages, setResumePages] = useState(1)
+    const { setReport } = useInterview()
 
     const handleDownloadPdf = async () => {
         setPdfLoading(true)
@@ -255,94 +201,136 @@ const ResumeTab = ({ report, tailored, onOpenBuilder, user }) => {
         }
     }
 
-    // ATS sidebar data
-    const hasTailoredScore = tailored && tailored.atsAfter != null
-    const diff = hasTailoredScore ? tailored.atsAfter - (tailored.atsBefore ?? 0) : 0
-    const afterColor = hasTailoredScore ? scoreColorHex(tailored.atsAfter) : '#fff'
-    const lbl = hasTailoredScore ? scoreLabel(tailored.atsAfter) : null
+    if (!tailored?.html) {
+        return (
+            <div className="tab-content tab-resume tab-resume--empty">
+                <EmptyResumeState onBuild={onOpenBuilder} />
+            </div>
+        )
+    }
+
+    const scoring = tailored.scoring
+    const hasTailoredScore = (scoring?.after?.score != null) || (tailored.atsAfter != null)
+    const beforeScore = scoring?.before?.score ?? tailored.atsBefore ?? report.matchScore
+    const afterScore = scoring?.after?.score ?? tailored.atsAfter ?? report.matchScore
+
+    // Top 5 missing must-have keywords
+    const missingList = scoring?.after?.missing || []
+    const topMissingMust = missingList.filter(k => k.importance === 'must').slice(0, 5)
+    const matchedCount = scoring?.after?.matched?.length ?? tailored.matchedAfter?.length ?? 0
+    const totalKeywords = (scoring?.after?.matched?.length ?? 0) + (scoring?.after?.missing?.length ?? 0)
 
     return (
-        <div className="tab-content tab-resume">
+        <div className="tab-resume">
             <div className="tab-resume__grid">
-                {/* LEFT: preview panel */}
+                {/* LEFT: Preview Panel */}
                 <div className="tab-resume__left">
-                    <div className="tab-resume__header-row">
-                        <span className="tab-resume__preview-label">Preview</span>
-                        <div className="tab-resume__dl-row">
-                            {tailored?.html && (
+                    <ResumePreview
+                        html={tailored.html}
+                        reportTitle={report.title}
+                        onMeasured={({ pages }) => setResumePages(pages)}
+                        isUpdating={isUpdatingPreview}
+                        isEditing={isEditing}
+                        hasContent={Boolean(tailored?.content)}
+                        onToggleEdit={() => setIsEditing(e => !e)}
+                        onDownloadPdf={handleDownloadPdf}
+                        pdfLoading={pdfLoading}
+                        onRebuild={onOpenBuilder}
+                    />
+                </div>
+
+                {/* RIGHT: Editor OR ATS Sidebar */}
+                <div className="tab-resume__right">
+                    {isEditing && tailored?.content ? (
+                        <ResumeEditor
+                            reportId={report._id}
+                            initialContent={tailored.content}
+                            initialScoring={tailored.scoring}
+                            pages={resumePages}
+                            onPreviewUpdate={({ html, scoring, atsBefore, atsAfter, isUpdating }) => {
+                                setIsUpdatingPreview(Boolean(isUpdating))
+                                if (html) {
+                                    setTailored(prev => ({
+                                        ...prev,
+                                        html,
+                                        scoring: scoring || prev.scoring,
+                                        atsBefore: atsBefore ?? prev.atsBefore,
+                                        atsAfter: atsAfter ?? prev.atsAfter
+                                    }))
+                                }
+                            }}
+                            onSaveSuccess={(updated) => {
+                                setTailored(prev => ({ ...prev, ...updated }))
+                                if (setReport) {
+                                    setReport(prev => prev ? {
+                                        ...prev,
+                                        tailoredResume: { ...prev.tailoredResume, ...updated }
+                                    } : prev)
+                                }
+                            }}
+                            onDiscard={() => setIsEditing(false)}
+                            onHasUnsavedChangesChange={() => {}}
+                        />
+                    ) : (
+                        <div className="ats-sidebar-card">
+                            {hasTailoredScore ? (
                                 <>
-                                    <button
-                                        className="dl-btn dl-btn--primary"
-                                        onClick={handleDownloadPdf}
-                                        disabled={pdfLoading}
-                                    >
-                                        {pdfLoading ? 'Generating…' : '↓ Download PDF'}
-                                    </button>
-                                    <button
-                                        className="dl-btn dl-btn--ghost"
-                                        onClick={() => toast('Word download coming soon', { icon: '📄' })}
-                                    >
-                                        ↓ Download Word
-                                    </button>
+                                    <ScoreCompare
+                                        size="md"
+                                        before={beforeScore}
+                                        after={afterScore}
+                                    />
+
+                                    {scoring?.explanation && (
+                                        <p className="ats-sidebar-card__explanation">
+                                            {scoring.explanation}
+                                        </p>
+                                    )}
+
+                                    <div className="ats-sidebar-card__kw-summary">
+                                        <p className="ats-sidebar-card__kw-count">
+                                            {totalKeywords > 0
+                                                ? `${matchedCount} of ${totalKeywords} keywords matched`
+                                                : `${matchedCount} keywords matched`}
+                                        </p>
+                                        {topMissingMust.length > 0 && (
+                                            <div className="ats-sidebar-card__missing-chips">
+                                                <span className="ats-sidebar-card__missing-label">Top missing must-haves:</span>
+                                                <div className="ats-sidebar-card__chips-row">
+                                                    {topMissingMust.map(kw => (
+                                                        <span key={kw.term} className="ats-mini-chip">
+                                                            <span className="must-dot must-dot--amber" /> {kw.term}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        <button
+                                            type="button"
+                                            className="ats-sidebar-card__view-all-btn"
+                                            onClick={() => onTabChange('ats')}
+                                        >
+                                            View all in ATS Score →
+                                        </button>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <p className="ats-sidebar-card__label">ESTIMATED ATS MATCH</p>
+                                    <div className="ats-sidebar-card__ring-wrap">
+                                        <ScoreRing score={report.matchScore} size={96} />
+                                    </div>
+                                    <p className="ats-before-after__sub" style={{ textAlign: 'center', marginBottom: 8 }}>
+                                        Original resume
+                                    </p>
+                                    <p className="ats-sidebar-card__hint">
+                                        Build your tailored resume to see your improved score.
+                                    </p>
                                 </>
                             )}
                         </div>
-                    </div>
-
-                    {tailored?.html ? (
-                        <>
-                            <div className="resume-preview-scroll">
-                                <div className="resume-paper-wrap" ref={panelRef}>
-                                    <div style={{ width: 794, height: 1123, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
-                                        <iframe
-                                            srcDoc={tailored.html}
-                                            sandbox=""
-                                            title="Resume preview"
-                                            style={{
-                                                width: 794,
-                                                height: 1123,
-                                                border: '1px solid var(--border, #1e1e1e)',
-                                                background: '#fff',
-                                                display: 'block'
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                            <button className="dl-btn dl-btn--ghost dl-btn--rebuild" onClick={onOpenBuilder}>
-                                ↺ Rebuild with different skills
-                            </button>
-                        </>
-                    ) : (
-                        <EmptyResumeState onBuild={onOpenBuilder} />
                     )}
                 </div>
-
-                {/* RIGHT: ATS sidebar */}
-                <aside className="tab-resume__right">
-                    <div className="ats-sidebar-card">
-                        {hasTailoredScore ? (
-                            <ScoreCompare
-                                size="md"
-                                before={tailored.atsBefore}
-                                after={tailored.atsAfter}
-                            />
-                        ) : (
-                            <>
-                                <p className="ats-sidebar-card__label">ESTIMATED ATS MATCH</p>
-                                <div className="ats-sidebar-card__ring-wrap">
-                                    <ScoreRing score={report.matchScore} size={96} />
-                                </div>
-                                <p className="ats-before-after__sub" style={{ textAlign: 'center', marginBottom: 8 }}>
-                                    Original resume
-                                </p>
-                                <p className="ats-sidebar-card__hint">
-                                    Build your tailored resume to see your improved score.
-                                </p>
-                            </>
-                        )}
-                    </div>
-                </aside>
             </div>
         </div>
     )
@@ -363,9 +351,10 @@ const ChangesTab = ({ report, tailored, onOpenBuilder }) => {
     }
 
     const ch = tailored.changes || {}
-    const atsBefore = tailored.atsBefore
-    const atsAfter = tailored.atsAfter
+    const atsBefore = tailored.scoring?.before?.score ?? tailored.atsBefore
+    const atsAfter = tailored.scoring?.after?.score ?? tailored.atsAfter
     const hasDiff = atsBefore != null && atsAfter != null
+    const keywordsGained = tailored.scoring?.keywordsGained || tailored.keywordsGained || []
 
     const cards = [
         ch.skillsAdded?.length > 0 && {
@@ -383,9 +372,9 @@ const ChangesTab = ({ report, tailored, onOpenBuilder }) => {
             body: ch.summaryAngle ? `${ch.summaryAngle}: ${ch.summaryText || ''}` : ch.summaryText,
             green: true
         },
-        tailored.keywordsGained?.length > 0 && {
+        keywordsGained.length > 0 && {
             title: 'Keywords now matched',
-            tags: tailored.keywordsGained,
+            tags: keywordsGained,
             green: true
         },
         hasDiff && {
@@ -426,26 +415,66 @@ const ChangesTab = ({ report, tailored, onOpenBuilder }) => {
 }
 
 // ─────────────────────────────────────────────────────────────
+// ATS BREAKDOWN ROW
+// ─────────────────────────────────────────────────────────────
+
+const BreakdownRow = ({ title, item }) => {
+    if (!item) return null
+    const pct = Math.min(100, Math.max(0, (item.points / item.max) * 100))
+    return (
+        <div className="ats-breakdown-row">
+            <div className="ats-breakdown-row__header">
+                <span className="ats-breakdown-row__title">{title}</span>
+                <span className="ats-breakdown-row__score">{item.points} / {item.max}</span>
+            </div>
+            <div className="ats-breakdown-row__bar-track">
+                <div className="ats-breakdown-row__bar-fill" style={{ width: `${pct}%` }} />
+            </div>
+            <p className="ats-breakdown-row__detail">{item.detail}</p>
+        </div>
+    )
+}
+
+// ─────────────────────────────────────────────────────────────
 // TAB: ATS SCORE
 // ─────────────────────────────────────────────────────────────
 
 const AtsTab = ({ report, tailored, onOpenBuilder }) => {
     const hasTailored = tailored && tailored.atsAfter != null
-    const score = hasTailored ? tailored.atsAfter : report.matchScore
-    const color = scoreColorHex(score)
+    const scoring = tailored?.scoring
+    const isV2 = scoring && scoring.version === 2
+
+    const beforeScore = scoring?.before?.score ?? tailored?.atsBefore ?? report.matchScore
+    const afterScore = scoring?.after?.score ?? tailored?.atsAfter ?? report.matchScore
+
+    const matchedList = scoring?.after?.matched || []
+    const missingList = scoring?.after?.missing || []
+
+    const sortedMatched = [...matchedList].sort((a, b) => {
+        if (a.importance === 'must' && b.importance !== 'must') return -1
+        if (a.importance !== 'must' && b.importance === 'must') return 1
+        return 0
+    })
+
+    const sortedMissing = [...missingList].sort((a, b) => {
+        if (a.importance === 'must' && b.importance !== 'must') return -1
+        if (a.importance !== 'must' && b.importance === 'must') return 1
+        return 0
+    })
+
+    const keywordsGained = scoring?.keywordsGained || tailored?.keywordsGained || []
+    const breakdown = scoring?.after?.breakdown
 
     return (
         <div className="tab-content tab-ats">
             <h2 className="tab-section-heading">ATS Score</h2>
 
             {hasTailored ? (
-                <>
-                    <ScoreCompare
-                        size="lg"
-                        before={tailored.atsBefore}
-                        after={tailored.atsAfter}
-                    />
-                </>
+                <ScoreCompare
+                    size="lg"
+                    before={beforeScore}
+                    after={afterScore}
+                />
             ) : (
                 <div className="ats-score-hero">
                     <ScoreRing score={report.matchScore} size={120} />
@@ -458,14 +487,74 @@ const AtsTab = ({ report, tailored, onOpenBuilder }) => {
                 </div>
             )}
 
-            {report.matchSummary && (
-                <div className="ats-why-section">
-                    <p className="tab-overline">WHY THIS SCORE</p>
-                    <p className="ats-why-text">{report.matchSummary}</p>
+            {!isV2 && hasTailored && (
+                <div className="ats-v1-hint">
+                    <p>💡 This report was generated with an older scoring version. Click <strong>"Rebuild with different skills"</strong> in the Resume tab to refresh this score with detailed ATS breakdown.</p>
                 </div>
             )}
 
-            {hasTailored && (
+            {/* Score Breakdown (5 rows) */}
+            {breakdown && (
+                <div className="ats-breakdown-section">
+                    <p className="tab-overline">SCORE BREAKDOWN</p>
+                    <div className="ats-breakdown-card">
+                        <BreakdownRow title="Skills Match" item={breakdown.skills} />
+                        <BreakdownRow title="Role Title Alignment" item={breakdown.title} />
+                        <BreakdownRow title="Experience Level" item={breakdown.experience} />
+                        <BreakdownRow title="Education" item={breakdown.education} />
+                        <BreakdownRow title="Format & Readability" item={breakdown.format} />
+                    </div>
+                </div>
+            )}
+
+            {/* Why This Score (deterministic explanation — NO report.matchSummary) */}
+            {scoring?.explanation && (
+                <div className="ats-why-section">
+                    <p className="tab-overline">WHY THIS SCORE</p>
+                    <p className="ats-why-text">{scoring.explanation}</p>
+                </div>
+            )}
+
+            {/* Keywords Grid: Matched & Missing with must-have indicator */}
+            {isV2 ? (
+                <div className="ats-keywords-grid">
+                    <div className="ats-kw-col">
+                        <p className="tab-overline" style={{ color: '#22c55e' }}>
+                            ✓ MATCHED KEYWORDS ({matchedList.length})
+                        </p>
+                        <div className="kw-tags">
+                            {sortedMatched.length === 0 ? (
+                                <span className="kw-tag kw-tag--muted">None</span>
+                            ) : (
+                                sortedMatched.map(k => (
+                                    <span key={k.term} className="kw-tag kw-tag--green">
+                                        {k.importance === 'must' && <span className="must-dot must-dot--green" />}
+                                        {k.term}
+                                    </span>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="ats-kw-col">
+                        <p className="tab-overline" style={{ color: '#f59e0b' }}>
+                            ⚠ STILL MISSING ({missingList.length})
+                        </p>
+                        <div className="kw-tags">
+                            {sortedMissing.length === 0 ? (
+                                <span className="kw-tag kw-tag--muted">None — great match!</span>
+                            ) : (
+                                sortedMissing.map(k => (
+                                    <span key={k.term} className="kw-tag kw-tag--amber">
+                                        {k.importance === 'must' && <span className="must-dot must-dot--amber" />}
+                                        {k.term}
+                                    </span>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            ) : hasTailored ? (
                 <div className="ats-keywords-grid">
                     <div className="ats-kw-col">
                         <p className="tab-overline" style={{ color: '#22c55e' }}>✓ MATCHED KEYWORDS</p>
@@ -480,13 +569,29 @@ const AtsTab = ({ report, tailored, onOpenBuilder }) => {
                         <p className="tab-overline" style={{ color: '#f59e0b' }}>⚠ STILL MISSING</p>
                         <div className="kw-tags">
                             {(tailored.missingAfter || []).length === 0
-                                ? <span className="kw-tag kw-tag--muted">None — great match!</span>
+                                ? <span className="kw-tag kw-tag--muted">None</span>
                                 : (tailored.missingAfter || []).map((k, i) => <span key={i} className="kw-tag kw-tag--amber">{k}</span>)
                             }
                         </div>
                     </div>
                 </div>
+            ) : null}
+
+            {/* Added by tailoring */}
+            {keywordsGained.length > 0 && (
+                <div className="ats-gained-section">
+                    <p className="tab-overline" style={{ color: '#ec4899' }}>✨ ADDED BY TAILORING</p>
+                    <div className="kw-tags">
+                        {keywordsGained.map((k, i) => (
+                            <span key={i} className="kw-tag kw-tag--pink">{k}</span>
+                        ))}
+                    </div>
+                </div>
             )}
+
+            <p className="ats-footer-rubric-note">
+                Estimate based on keyword, title, experience, education and format checks. Real ATS systems vary.
+            </p>
         </div>
     )
 }
@@ -603,13 +708,20 @@ const Interview = () => {
     const effectiveId = interviewId || routeId
     const navigate = useNavigate()
 
-    // local tailoredResume — starts from report, updated after modal completes
+    // local tailoredResume — starts from report, updated after builder or editor completes
     const [tailored, setTailored] = useState(null)
     useEffect(() => {
         if (report?.tailoredResume?.html) {
             setTailored(report.tailoredResume)
         }
     }, [report])
+
+    // Update document.title: "{report.title} · AcePrep AI"
+    useEffect(() => {
+        if (report?.title) {
+            document.title = `${report.title} · AcePrep AI`
+        }
+    }, [report?.title])
 
     if (loading) return <LoadingScreen />
 
@@ -623,7 +735,6 @@ const Interview = () => {
 
     const handleResumeReady = (tailoredResume) => {
         setTailored(tailoredResume)
-        // Also update the report in context so reloading preserves it
         if (setReport) setReport(prev => prev ? { ...prev, tailoredResume } : prev)
         setShowResumeBuilder(false)
         setTab('resume')
@@ -631,65 +742,10 @@ const Interview = () => {
     }
 
     return (
-        <div className="interview-page">
-            {/* ── Score headline header ── */}
-            <div className="report-headline">
-                <div className="report-headline__left">
-                    {tailored?.atsBefore != null && tailored?.atsAfter != null ? (
-                        <>
-                            {(() => {
-                                const delta = tailored.atsAfter - tailored.atsBefore
-                                const chipStyle = delta > 0
-                                    ? { bg: 'rgba(34,197,94,0.1)', color: '#22c55e', border: 'rgba(34,197,94,0.25)' }
-                                    : delta < 0
-                                        ? { bg: 'rgba(239,68,68,0.1)', color: '#ef4444', border: 'rgba(239,68,68,0.25)' }
-                                        : { bg: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: 'rgba(255,255,255,0.1)' }
-                                const headline = delta > 0
-                                    ? `Score improved ${tailored.atsBefore}% → ${tailored.atsAfter}%`
-                                    : delta === 0
-                                        ? `Score unchanged at ${tailored.atsAfter}%`
-                                        : `Score went from ${tailored.atsBefore}% to ${tailored.atsAfter}%`
-                                const chipLabel = delta > 0 ? `+${delta} points` : delta < 0 ? `${delta} points` : 'No change'
-                                return (
-                                    <>
-                                        <div className="report-headline__title-row">
-                                            <h1 className="report-headline__h1">{headline}</h1>
-                                            <span
-                                                className="report-headline__chip"
-                                                style={{ background: chipStyle.bg, color: chipStyle.color, borderColor: chipStyle.border }}
-                                            >
-                                                {chipLabel}
-                                            </span>
-                                        </div>
-                                        <p className="report-headline__sub">
-                                            {report.title}
-                                            {tailored.generatedAt && (
-                                                <> · optimized {relativeTime(tailored.generatedAt)}</>
-                                            )}
-                                        </p>
-                                    </>
-                                )
-                            })()}
-                        </>
-                    ) : (
-                        <>
-                            <h1 className="report-headline__h1 report-headline__h1--plain">{report.title || 'Interview Report'}</h1>
-                            <p className="report-headline__sub">
-                                {new Date(report.createdAt || Date.now()).toLocaleDateString('en-US', {
-                                    year: 'numeric', month: 'short', day: 'numeric'
-                                })}
-                            </p>
-                        </>
-                    )}
-                </div>
-                <button className="report-headline__start-over" onClick={() => navigate('/')}>
-                    Start over
-                </button>
-            </div>
-
-            {/* Sticky top bar */}
-            <div className="report-topbar">
-                <div className="report-topbar__right">
+        <div className={`interview-page ${activeTab === 'resume' ? 'interview-page--resume-active' : ''}`}>
+            {/* ── Tabs bar directly under navbar (no header block above it) ── */}
+            <div className="report-tab-bar">
+                <div className="report-tab-bar__tabs">
                     {TABS.map(tab => (
                         <button
                             key={tab.id}
@@ -699,20 +755,26 @@ const Interview = () => {
                             {tab.label}
                         </button>
                     ))}
-                    <button className="topbar-mock-btn" onClick={() => navigate(`/mock-interview/${effectiveId}`)}>
-                        Mock Interview →
-                    </button>
                 </div>
+                <div className="report-tab-bar__spacer" />
+                <button
+                    className="topbar-mock-btn"
+                    onClick={() => navigate(`/mock-interview/${effectiveId}`)}
+                >
+                    Mock Interview →
+                </button>
             </div>
 
-            {/* Tab content — only the active tab renders */}
-            <div className="interview-body">
+            {/* ── Tab body ── */}
+            <div className={`interview-body ${activeTab === 'resume' ? 'interview-body--resume-active' : ''}`}>
                 {activeTab === 'resume' && (
                     <ResumeTab
                         report={report}
                         tailored={tailored}
+                        setTailored={setTailored}
                         onOpenBuilder={() => setShowResumeBuilder(true)}
                         user={user}
+                        onTabChange={setTab}
                     />
                 )}
                 {activeTab === 'changed' && (

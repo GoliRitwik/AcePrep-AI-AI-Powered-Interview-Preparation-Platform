@@ -115,7 +115,16 @@ const interviewReportSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    // ── Deterministic ATS Cache ──────────────────────────────────────────────
+    atsCache: {
+        key: { type: String, default: null },
+        requirements: { type: mongoose.Schema.Types.Mixed, default: null },
+        facts: { type: mongoose.Schema.Types.Mixed, default: null },
+        original: { type: mongoose.Schema.Types.Mixed, default: null }
+    },
     tailoredResume: {
+        content: { type: mongoose.Schema.Types.Mixed, default: null },
+        scoring: { type: mongoose.Schema.Types.Mixed, default: null },
         html: { type: String, default: null },
         generatedAt: { type: Date, default: null },
         atsBefore: { type: Number, default: null },

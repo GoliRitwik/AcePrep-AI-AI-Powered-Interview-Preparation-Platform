@@ -1,5 +1,6 @@
 const pdfParse = require("pdf-parse")
-const { generateInterviewReport, generateResumePdf, generatePdfFromHtml, generateTailoredResume, scoreResumeComparison, resumeContentToText, generateSummaryOptions } = require("../services/ai.service")
+const { generateInterviewReport, generateResumePdf, generatePdfFromHtml, generateTailoredResume, buildResumeHtml, scoreResumeComparison, resumeContentToText, generateSummaryOptions } = require("../services/ai.service")
+const { ensureAtsCache, scoreResume, buildScoreExplanation } = require("../services/ats.service")
 const interviewReportModel = require("../models/interviewReport.model")
 const { nanoid } = require("nanoid")
 
@@ -264,7 +265,7 @@ async function getSharedReportController(req, res) {
 
 /**
  * POST /api/interview/resume/generate/:reportId
- * Generates the tailored resume HTML + scores it, saves to report.tailoredResume.
+ * Generates the tailored resume HTML + scores it deterministically, saves to report.tailoredResume.
  */
 async function generateTailoredResumeController(req, res) {
     try {
@@ -281,7 +282,7 @@ async function generateTailoredResumeController(req, res) {
             summaryLabel = ''
         } = req.body || {}
 
-        // 1. Generate HTML (no PDF)
+        // 1. Generate content + HTML (no PDF)
         const { content, html } = await generateTailoredResume({
             resume: report.resume,
             selfDescription: report.selfDescription,
@@ -292,32 +293,55 @@ async function generateTailoredResumeController(req, res) {
             irrelevantSkillsToDeprioritize
         })
 
-        // 2. Score comparison — wrap in try/catch so a scoring failure never blocks the resume
-        let scoreData = {}
+        // 2. Deterministic ATS Scoring (Part 4)
         let scoreAvailable = false
+        let scoring = null
+        let atsBefore = null
+        let atsAfter = null
+        let keywordsGained = []
+
         try {
+            // Ensure atsCache exists on report (extracted once, cached across rebuilds)
+            const atsCache = await ensureAtsCache(report)
+            const before = atsCache.original
             const tailoredText = resumeContentToText(content)
-            const scores = await scoreResumeComparison({
-                originalResume: report.resume,
-                tailoredText,
-                jobDescription: report.jobDescription
+            const after = scoreResume({
+                text: tailoredText,
+                requirements: atsCache.requirements,
+                facts: atsCache.facts
             })
-            scoreData = scores
+
+            const beforeMatchedTerms = new Set((before.matched || []).map(m => m.term.toLowerCase()))
+            keywordsGained = (after.matched || [])
+                .filter(m => !beforeMatchedTerms.has(m.term.toLowerCase()))
+                .map(m => m.term)
+
+            atsBefore = before.score
+            atsAfter = after.score
+            scoring = {
+                version: 2,
+                before,
+                after,
+                keywordsGained,
+                explanation: buildScoreExplanation(after)
+            }
             scoreAvailable = true
         } catch (scoreErr) {
-            console.error('scoreResumeComparison failed (non-blocking):', scoreErr.message)
+            console.error('Deterministic ATS scoring failed (non-blocking):', scoreErr.message)
         }
 
         // 3. Save to report
         report.tailoredResume = {
+            content,
             html,
+            scoring,
             generatedAt: new Date(),
-            atsBefore: scoreData.atsBefore ?? null,
-            atsAfter: scoreData.atsAfter ?? null,
-            matchedBefore: scoreData.matchedBefore || [],
-            matchedAfter: scoreData.matchedAfter || [],
-            missingAfter: scoreData.missingAfter || [],
-            keywordsGained: scoreData.keywordsGained || [],
+            atsBefore,
+            atsAfter,
+            matchedBefore: [],
+            matchedAfter: [],
+            missingAfter: [],
+            keywordsGained,
             changes: {
                 skillsAdded: confirmedSkills,
                 skillsDeprioritized: irrelevantSkillsToDeprioritize,
@@ -330,6 +354,134 @@ async function generateTailoredResumeController(req, res) {
         return res.json({ success: true, tailoredResume: report.tailoredResume, scoreAvailable })
     } catch (err) {
         console.error('generateTailoredResumeController error:', err)
+        return res.status(500).json({ success: false, message: err.message })
+    }
+}
+
+
+/**
+ * PATCH /api/interview/resume/:reportId
+ * In-place editing of tailored resume content with live re-render and deterministic re-score.
+ */
+async function updateTailoredResumeController(req, res) {
+    try {
+        const report = await interviewReportModel.findById(req.params.reportId)
+        if (!report) return res.status(404).json({ success: false, message: 'Report not found.' })
+        if (report.user.toString() !== req.user.id.toString())
+            return res.status(403).json({ success: false, message: 'Not authorised.' })
+
+        // Check if report has saved content & atsCache (older reports must rebuild once)
+        if (!report.tailoredResume?.content || !report.atsCache?.requirements) {
+            return res.status(409).json({ success: false, message: 'Rebuild the resume once to enable editing.' })
+        }
+
+        const saved = report.tailoredResume.content
+        const input = req.body.content || {}
+        const save = Boolean(req.body.save)
+
+        // Helper to strip control characters, trim, and enforce max length
+        const clean = (str, maxLen = 1000) => {
+            if (typeof str !== 'string') return ''
+            return str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim().slice(0, maxLen)
+        }
+
+        // 1. Sanitize editable fields and merge with immutable saved fields
+        const sanitizedContent = {
+            // Immutable identity & links (taken strictly from saved content)
+            name: saved.name,
+            email: saved.email,
+            phone: saved.phone,
+            githubUrl: saved.githubUrl,
+            linkedinUrl: saved.linkedinUrl,
+
+            // Editable: summary (max 900 chars)
+            summary: clean(input.summary, 900),
+
+            // Editable: skillsRows (max 5 rows; label max 30; value max 200)
+            skillsRows: (Array.isArray(input.skillsRows) ? input.skillsRows.slice(0, 5) : []).map(row => {
+                const rawItems = Array.isArray(row.items) ? row.items : (row.label ? [row] : [])
+                return {
+                    items: rawItems.map(item => ({
+                        label: clean(item.label, 30),
+                        value: clean(item.value, 200)
+                    }))
+                }
+            }),
+
+            // Editable: internships bullets (max 2 each), organisation is immutable
+            internships: (saved.internships || []).map((org, i) => {
+                const inputBullets = input.internships?.[i]?.bullets || org.bullets || []
+                return {
+                    organisation: org.organisation,
+                    bullets: inputBullets.slice(0, 2).map(b => clean(b, 350))
+                }
+            }),
+
+            // Editable: project bullets (max 3, min 1), name & stack are immutable
+            projects: (saved.projects || []).map((proj, i) => {
+                const inputBullets = input.projects?.[i]?.bullets || proj.bullets || []
+                const cleanedBullets = inputBullets.slice(0, 3).map(b => clean(b, 350)).filter(Boolean)
+                return {
+                    name: proj.name,
+                    stack: proj.stack,
+                    bullets: cleanedBullets.length > 0 ? cleanedBullets : proj.bullets.slice(0, 1)
+                }
+            }),
+
+            // Editable: certifications (max 600 chars), codingProfiles (max 300 chars)
+            certifications: clean(input.certifications, 600),
+            codingProfiles: clean(input.codingProfiles, 300)
+        }
+
+        // 2. Rebuild HTML (escapes all values)
+        const html = buildResumeHtml(sanitizedContent)
+
+        // 3. Re-score using cached requirements & facts
+        const tailoredText = resumeContentToText(sanitizedContent)
+        const after = scoreResume({
+            text: tailoredText,
+            requirements: report.atsCache.requirements,
+            facts: report.atsCache.facts
+        })
+        const before = report.atsCache.original || scoreResume({
+            text: report.resume,
+            requirements: report.atsCache.requirements,
+            facts: report.atsCache.facts
+        })
+
+        const beforeMatchedTerms = new Set((before.matched || []).map(m => m.term.toLowerCase()))
+        const keywordsGained = (after.matched || [])
+            .filter(m => !beforeMatchedTerms.has(m.term.toLowerCase()))
+            .map(m => m.term)
+
+        const scoring = {
+            version: 2,
+            before,
+            after,
+            keywordsGained,
+            explanation: buildScoreExplanation(after)
+        }
+
+        // 4. Persist if save === true
+        if (save) {
+            report.tailoredResume.content = sanitizedContent
+            report.tailoredResume.html = html
+            report.tailoredResume.scoring = scoring
+            report.tailoredResume.atsAfter = after.score
+            report.tailoredResume.keywordsGained = keywordsGained
+            report.tailoredResume.generatedAt = new Date()
+            await report.save()
+        }
+
+        return res.json({
+            success: true,
+            html,
+            scoring,
+            atsBefore: before.score,
+            atsAfter: after.score
+        })
+    } catch (err) {
+        console.error('updateTailoredResumeController error:', err)
         return res.status(500).json({ success: false, message: err.message })
     }
 }
@@ -374,5 +526,6 @@ module.exports = {
     toggleShareController,
     getSharedReportController,
     generateTailoredResumeController,
-    downloadTailoredResumePdfController
+    downloadTailoredResumePdfController,
+    updateTailoredResumeController
 }

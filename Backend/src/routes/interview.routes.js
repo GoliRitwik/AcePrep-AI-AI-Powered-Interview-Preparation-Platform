@@ -1,9 +1,18 @@
 const express = require("express")
+const rateLimit = require("express-rate-limit")
 const authMiddleware = require("../middlewares/auth.middleware")
 const interviewController = require("../controllers/interview.controller")
 const upload = require("../middlewares/file.middleware")
 
 const interviewRouter = express.Router()
+
+const resumeEditLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    keyGenerator: (req) => req.user?.id || req.ip,
+    validate: { keyGeneratorIpFallback: false },
+    message: { success: false, message: "Too many preview requests. Please wait a moment." }
+})
 
 
 
@@ -59,6 +68,13 @@ interviewRouter.post("/resume/generate/:reportId", authMiddleware.authUser, inte
  * @access private
  */
 interviewRouter.get("/resume/pdf/:reportId", authMiddleware.authUser, interviewController.downloadTailoredResumePdfController)
+
+/**
+ * @route PATCH /api/interview/resume/:reportId
+ * @description In-place editing of tailored resume content, re-render and re-score with cached requirements.
+ * @access private
+ */
+interviewRouter.patch("/resume/:reportId", authMiddleware.authUser, resumeEditLimiter, interviewController.updateTailoredResumeController)
 
 
 /**

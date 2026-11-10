@@ -209,30 +209,31 @@ async function generatePdfFromHtml(htmlContent) {
 function buildResumeHtml(content) {
     const e = escapeHtml
 
-    const skillsRowsHtml = content.skillsRows.map(row =>
-        `<div class="skills-row">${row.items.map(item =>
+    const skillsRowsHtml = (content.skillsRows || []).map(row => {
+        const items = Array.isArray(row.items) ? row.items : (row.label ? [row] : [])
+        return `<div class="skills-row">${items.map(item =>
             `<span class="skill-item"><strong>${e(item.label)}:</strong> ${e(item.value)}</span>`
         ).join('\n      ')
         }</div>`
-    ).join('\n  ')
+    }).join('\n  ')
 
-    const internshipsHtml = content.internships.length > 0 ? `
+    const internshipsHtml = (content.internships || []).length > 0 ? `
     <div class="section">
       <div class="section-title">Internships</div>
-      ${content.internships.map(org => `
+      ${(content.internships || []).map(org => `
         <div class="org-title">${e(org.organisation)}</div>
         <ul>
-          ${org.bullets.map(b => `<li>${e(b)}</li>`).join('\n          ')}
+          ${(org.bullets || []).map(b => `<li>${e(b)}</li>`).join('\n          ')}
         </ul>`).join('')}
     </div>` : ''
 
-    const projectsHtml = content.projects.map(p => `
+    const projectsHtml = (content.projects || []).map(p => `
     <div class="project-header">
       <span class="project-name">${e(p.name)}</span>
       <span class="project-stack">${e(p.stack)}</span>
     </div>
     <ul>
-      ${p.bullets.map(b => `<li>${e(b)}</li>`).join('\n      ')}
+      ${(p.bullets || []).map(b => `<li>${e(b)}</li>`).join('\n      ')}
     </ul>`).join('')
 
     const emailHref = safeHref(`mailto:${content.email}`)
@@ -243,6 +244,7 @@ function buildResumeHtml(content) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -1200,6 +1202,7 @@ module.exports = {
     generateResumePdf,
     generatePdfFromHtml,
     generateTailoredResume,
+    buildResumeHtml,
     scoreResumeComparison,
     resumeContentToText,
     generateSummaryOptions,

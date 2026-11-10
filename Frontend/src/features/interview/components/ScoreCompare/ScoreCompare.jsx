@@ -23,12 +23,8 @@ export default function ScoreCompare({ before, after, size = 'md' }) {
     // Animated bar widths
     const [baseWidth, setBaseWidth] = useState(0)
     const [gainWidth, setGainWidth] = useState(0)
-    const mounted = useRef(false)
 
     useEffect(() => {
-        if (mounted.current) return
-        mounted.current = true
-        // Delay slightly so CSS transition fires after mount
         const t = setTimeout(() => {
             if (hasAfter) {
                 setBaseWidth(Math.min(before, after))
@@ -36,7 +32,7 @@ export default function ScoreCompare({ before, after, size = 'md' }) {
             } else {
                 setBaseWidth(before)
             }
-        }, 60)
+        }, 30)
         return () => clearTimeout(t)
     }, [before, after, hasAfter])
 
